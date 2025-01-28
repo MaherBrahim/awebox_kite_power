@@ -129,14 +129,14 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
 
         q = variables['x']['q' + str(kite) + str(parent)]
 
-        CL = 1.
-        CD = 0.2
-        f_lift = 0.5 * rho_infty * cas.norm_2(vec_u) * parameters['theta0', 'geometry', 's_ref'] * CL * cas.cross(vec_u, kite_dcm[:, 1])
-        f_drag = 0.5 * rho_infty * cas.norm_2(vec_u) * parameters['theta0', 'geometry', 's_ref'] * CD * vec_u #  * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_1(coeff[0]))
-
-        #correction_term = (parameters['theta0', 'geometry', 'c2_s'] / cas.norm_2(vec_u)) * cas.sin(psi) * cas.cos(deg2rad(parameters['theta0', 'geometry', 'beta']))
-        correction_term = 0.0
-        f_side = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) *  parameters['theta0', 'geometry', 'A_side/A'] * parameters['theta0', 'geometry', 'c_s'] * (coeff[0] + correction_term) * kite_dcm[:, 1]
+        #CL = 1.
+        #CD = 0.2
+        f_lift = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * CL * (cas.cross(vec_u, kite_dcm[:, 1])/cas.norm_2(cas.cross(vec_u, kite_dcm[:, 1])))
+        f_drag = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * CD * (vec_u/cas.norm_2(vec_u)) * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_1(coeff[0]))
+        psi = 0.0
+        correction_term = (parameters['theta0', 'geometry', 'c2_s'] / cas.norm_2(vec_u)) * cas.sin(psi) * cas.cos(deg2rad(parameters['theta0', 'geometry', 'beta']))
+        #correction_term = 0.0 
+        f_side = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * parameters['theta0', 'geometry', 'A_side/A'] * parameters['theta0', 'geometry', 'c_s'] * kite_dcm[:, 1] * (coeff[0] + correction_term) 
 
         f_aero =  f_lift + f_drag + f_side
 
@@ -145,7 +145,7 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
 def get_alpha_LEI(vec_u, kite_dcm, coeff, parameters):
     alpha_d = (coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0']) * deg2rad(parameters['theta0', 'geometry', 'alpha_d_max'])
     alpha = cas.arccos(cas.dot(vec_u, kite_dcm[:, 0]) / cas.norm_2(vec_u)) - alpha_d + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
-    alpha = cas.arccos(cas.dot(vec_u, kite_dcm[:, 0]) / cas.norm_2(vec_u))
+    #alpha = cas.arccos(cas.dot(vec_u, kite_dcm[:, 0]) / cas.norm_2(vec_u))
     return alpha
 
 def deg2rad(angle_in_deg):
@@ -158,7 +158,7 @@ def get_aerodynamic_coefficient(alpha):
     """
     Calculates the aerodynamic coefficient for a given angle of attack alpha.
 
-    :param alpha: angle of attack alpha in grad
+    :param alpha: angle of attack alpha in rad
     :return: C_l, C_D: the aerodynamic coefficient for the given AOA
 
     """
@@ -167,8 +167,17 @@ def get_aerodynamic_coefficient(alpha):
     # CD_values = [0.2, 0.175, 0.15, 0.125, 0.1, 0.125,0.15, 0.175, 0.2]
 
     alpha = rad2deg(alpha)
-    CL = 6.4474647951e-20 * alpha**3 + 7.5757575758e-04 * alpha**2 + 2.2500000000e-02 * alpha + 2.6818181818e-01
-    CD = 2.165e-4 * alpha**2 +  0.1195
+
+    lin_neg_CL= 0.005 * alpha + 0.2
+    lin_pos_CL = 0.04 * alpha + 0.2
+
+    # Sigmoid function for combining the two linear functions
+    k = 0.5  
+    alpha_c = 0  
+    S = 1 / (1 + cas.exp(-k * (alpha - alpha_c)))
+
+    CL = lin_neg_CL * (1 - S) + lin_pos_CL * S
+    CD = 2.165e-04 * alpha**2 +  1.195e-01
     return CL, CD
 
 def get_kite_reference_frame_1p_model(tether_direction, apparent_wind_vector):

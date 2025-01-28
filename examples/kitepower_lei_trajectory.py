@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import awebox.tools.print_operations as print_op
 import awebox.opts.kite_data.kitepower_lei_data as kitepower_lei_data
+from  kite_3D_plot import plot_kite, generate_kite_wing, plot_kitepower_similar_wing
 
 # indicate desired system architecture
 # here: single kite with 6DOF Ampyx AP2 model
@@ -29,7 +30,7 @@ options['user_options.system_model.kite_dof'] = 3
 # indicate desired operation mode
 options['user_options.trajectory.type'] = 'power_cycle'
 options['user_options.trajectory.system_type'] = 'lift_mode'
-windings = 3
+windings = 1
 options['user_options.trajectory.lift_mode.windings'] = windings
 
 # indicate desired environment
@@ -48,16 +49,16 @@ options['model.system_bounds.x.coeff'] =  [np.array([-1., 0.]), np.array([1., 1.
 options['nlp.n_k'] = int(40/3 * windings)
 options['nlp.collocation.u_param'] = 'zoh'
 options['user_options.trajectory.lift_mode.phase_fix'] = 'simple' # 'single_reelout'
-options['solver.linear_solver'] = 'ma57'  # if HSL is installed, otherwise 'mumps'
+options['solver.linear_solver'] = 'mumps'  # if HSL is installed, otherwise 'mumps'
 options['model.system_bounds.x.ddl_t'] = [-2.0, 2.0]
-options['model.system_bounds.theta.t_f'] = [0.0, windings*20.0]
+options['model.system_bounds.theta.t_f'] = [0.0, windings*40.0]
 
 options['model.model_bounds.acceleration.include']  = False
 options['model.model_bounds.aero_validity.include']  = False
 options['model.model_bounds.tether_stress.include']  = False
 # (experimental) set to "True" to significantly (factor 5 to 10) decrease construction time
 # note: this may result in slightly slower solution timings
-options['nlp.compile_subfunctions'] = True
+options['nlp.compile_subfunctions'] = False
 
 
 # initialization
@@ -84,6 +85,7 @@ trial.optimize(final_homotopy_step = 'final')
 
 # draw some of the pre-coded plots for analysis
 trial.plot(['isometric', 'states', 'controls', 'constraints'])
+
 
 # extract information from the solution for independent plotting or post-processing
 # here: plot relevant system outputs, compare to [Licitra2019, Fig 11].
@@ -138,5 +140,22 @@ plt.xlabel('t [s]')
 plt.legend()
 plt.grid(True)
 
+
+kite_positions = plot_dict['x']['q10']
+e_radial =plot_dict['outputs']['rotation']['ehat_radial1']
+e_tngential = plot_dict['outputs']['rotation']['ehat_tangential1']
+e_normal = plot_dict['outputs']['rotation']['ehat_normal0']
+
+
+plot_kite(kite_positions,  e_radial, e_tngential, e_normal, kite_size=1.5)
+
+# Parameters of the kite wing
+w = 5.77               # width 
+h = 2                  # Depth of each segment
+curve_height = 2.23    # Maximum height of the curvature
+num_segments = 5      # Number of panels
+
+panels = generate_kite_wing(w, h, curve_height, num_segments)
+plot_kitepower_similar_wing(panels, kite_positions, e_radial, e_tngential, e_normal)
 
 plt.show()

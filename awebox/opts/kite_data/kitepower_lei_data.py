@@ -73,7 +73,7 @@ def geometry():
     geometry['alpha_d_max'] = 31.0 # [deg]
 
     # Depower offset
-    geometry['u_d_0'] = 0.0#0.213
+    geometry['u_d_0'] = 0.231
 
     # Max depower setting
     geometry['u_d_max'] = 0.4247

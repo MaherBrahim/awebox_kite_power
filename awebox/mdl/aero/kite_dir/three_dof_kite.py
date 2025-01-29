@@ -162,11 +162,17 @@ def get_aerodynamic_coefficient(alpha):
     :return: C_l, C_D: the aerodynamic coefficient for the given AOA
 
     """
+
+    alpha = rad2deg(alpha)
     # degrees = [-20, -15, -10, -5, 0, 5, 10, 15, 20]
     # CL_values = [0.1, 0.125, 0.15, 0.175, 0.2, 0.4, 0.6, 0.8, 1.0]
     # CD_values = [0.2, 0.175, 0.15, 0.125, 0.1, 0.125,0.15, 0.175, 0.2]
+    #cl_f = cas.interpolant('Cl_F','bspline', [degrees], CL_values)
+    #cd_f = cas.interpolant('Cd_F','bspline', [degrees], CD_values)
+    #cl = cl_f(alpha)
+    #cd = cd_f(alpha)
 
-    alpha = rad2deg(alpha)
+    
 
     lin_neg_CL= 0.005 * alpha + 0.2
     lin_pos_CL = 0.04 * alpha + 0.2

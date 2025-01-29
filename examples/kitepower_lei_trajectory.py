@@ -51,7 +51,7 @@ options['nlp.collocation.u_param'] = 'zoh'
 options['user_options.trajectory.lift_mode.phase_fix'] = 'simple' # 'single_reelout'
 options['solver.linear_solver'] = 'mumps'  # if HSL is installed, otherwise 'mumps'
 options['model.system_bounds.x.ddl_t'] = [-2.0, 2.0]
-options['model.system_bounds.theta.t_f'] = [0.0, windings*40.0]
+options['model.system_bounds.theta.t_f'] = [0.0, windings*30.0]
 
 options['model.model_bounds.acceleration.include']  = False
 options['model.model_bounds.aero_validity.include']  = False
@@ -93,6 +93,11 @@ plot_dict = trial.visualization.plot_dict
 outputs = plot_dict['outputs']
 time = plot_dict['time_grids']['ip']
 avg_power = plot_dict['power_and_performance']['avg_power']/1e3
+kite_positions = plot_dict['x']['q10']
+e_radial =plot_dict['outputs']['rotation']['ehat_radial1']
+e_tngential = plot_dict['outputs']['rotation']['ehat_tangential1']
+e_normal = plot_dict['outputs']['rotation']['ehat_normal0']
+
 
 
 print('======================================')
@@ -140,12 +145,13 @@ plt.xlabel('t [s]')
 plt.legend()
 plt.grid(True)
 
-
-kite_positions = plot_dict['x']['q10']
-e_radial =plot_dict['outputs']['rotation']['ehat_radial1']
-e_tngential = plot_dict['outputs']['rotation']['ehat_tangential1']
-e_normal = plot_dict['outputs']['rotation']['ehat_normal0']
-
+plt.figure() 
+plt.plot(time, plot_dict['x']['coeff10'][0], label = 'u_s')
+plt.plot(time, plot_dict['x']['coeff10'][1], label = 'u_d')
+plt.xlabel('t[s]')
+plt.ylabel('u_d and u_s[-]')
+plt.legend()
+plt.grid(True)
 
 plot_kite(kite_positions,  e_radial, e_tngential, e_normal, kite_size=1.5)
 

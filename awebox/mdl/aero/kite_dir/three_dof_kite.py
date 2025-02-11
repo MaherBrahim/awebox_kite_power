@@ -84,13 +84,15 @@ def get_force_cstr(options, variables, atmos, wind, architecture, parameters, ou
 
 
 
-def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, wind, architecture, parameters):
+def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, wind, architecture, parameters, *args):
 
     parent = architecture.parent_map[kite]
 
     # get relevant variables for kite n
     q = variables['x']['q' + str(kite) + str(parent)]
+    dq = variables['x']['dq' + str(kite) + str(parent)]
     coeff = variables['x']['coeff' + str(kite) + str(parent)]
+    wind_velocity = wind.get_velocity(q[2])
 
     # wind parameters
     rho_infty = atmos.get_density(q[2])
@@ -125,27 +127,37 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
 
         #psi = variables['x']['psi' + str(kite) + str(parent)]
          
-        CL, CD = get_aerodynamic_coefficient(get_alpha_LEI(vec_u, kite_dcm, coeff, parameters))
+        CL, CD = get_aerodynamic_coefficient(get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, dq, wind_velocity))
 
-        q = variables['x']['q' + str(kite) + str(parent)]
 
         #CL = 1.
         #CD = 0.2
+        #coeff[1]= 0.26
+    
         f_lift = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * CL * (cas.cross(vec_u, kite_dcm[:, 1])/cas.norm_2(cas.cross(vec_u, kite_dcm[:, 1])))
-        f_drag = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * CD * (vec_u/cas.norm_2(vec_u)) * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_1(coeff[0]))
+        f_drag = 0.5 * rho_infty * cas.norm_2(vec_u) * parameters['theta0', 'geometry', 's_ref'] * CD  * (vec_u) * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_2(coeff[0]))
         psi = 0.0
-        correction_term = (parameters['theta0', 'geometry', 'c2_s'] / cas.norm_2(vec_u)) * cas.sin(psi) * cas.cos(deg2rad(parameters['theta0', 'geometry', 'beta']))
-        #correction_term = 0.0 
+        #correction_term = (parameters['theta0', 'geometry', 'c2_s'] / cas.norm_2(vec_u)) * cas.sin(psi) * cas.cos(deg2rad(parameters['theta0', 'geometry', 'beta']))
+        correction_term = 0.0 
         f_side = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * parameters['theta0', 'geometry', 'A_side/A'] * parameters['theta0', 'geometry', 'c_s'] * kite_dcm[:, 1] * (coeff[0] + correction_term) 
 
         f_aero =  f_lift + f_drag + f_side
+        if "forces" in args:
+            return f_lift, f_drag, f_side
+        else:
+            return f_aero
+    
 
-    return f_aero
+def get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, velocity, wind_velocity):
+    #coeff[1]= 0.26
+    alpha_d = ((coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0'])) * parameters['theta0', 'geometry', 'alpha_d_max']
+    # alpha = cas.arccos(cas.mtimes(vec_u.T, kite_dcm[:, 0])/ cas.norm_2(vec_u)) - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
+    alpha =  np.arccos(cas.dot(-vec_u, kite_dcm[:, 0]) / cas.norm_2(vec_u))  - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
+    
+    e_x = kite_dcm[:, 0]
+    e_z = kite_dcm[:, 2]
+    #alpha = cas.mtimes(e_z.T, vec_u) / cas.mtimes(e_x.T, vec_u) #- deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
 
-def get_alpha_LEI(vec_u, kite_dcm, coeff, parameters):
-    alpha_d = (coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0']) * deg2rad(parameters['theta0', 'geometry', 'alpha_d_max'])
-    alpha = cas.arccos(cas.dot(vec_u, kite_dcm[:, 0]) / cas.norm_2(vec_u)) - alpha_d + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
-    #alpha = cas.arccos(cas.dot(vec_u, kite_dcm[:, 0]) / cas.norm_2(vec_u))
     return alpha
 
 def deg2rad(angle_in_deg):
@@ -167,33 +179,47 @@ def get_aerodynamic_coefficient(alpha):
     # degrees = [-20, -15, -10, -5, 0, 5, 10, 15, 20]
     # CL_values = [0.1, 0.125, 0.15, 0.175, 0.2, 0.4, 0.6, 0.8, 1.0]
     # CD_values = [0.2, 0.175, 0.15, 0.125, 0.1, 0.125,0.15, 0.175, 0.2]
-    #cl_f = cas.interpolant('Cl_F','bspline', [degrees], CL_values)
-    #cd_f = cas.interpolant('Cd_F','bspline', [degrees], CD_values)
-    #cl = cl_f(alpha)
-    #cd = cd_f(alpha)
+    # cl_f = cas.interpolant('Cl_F','bspline', [degrees], CL_values)
+    # cd_f = cas.interpolant('Cd_F','bspline', [degrees], CD_values)
+    # CL = cl_f(alpha)
+    # CD = cd_f(alpha)
 
     
 
-    lin_neg_CL= 0.005 * alpha + 0.2
-    lin_pos_CL = 0.04 * alpha + 0.2
+    lin_neg_CL= 0.0058 * alpha + 0.204
+    lin_CL_1 = 0.04 * alpha + 0.2
+    lin_CL_2 = -0.02 * alpha + 1.8
+    quad_CL_1 = -0.001 * alpha **2 + 0.06 * alpha + 0.2
+    
 
-    # Sigmoid function for combining the two linear functions
-    k = 0.5  
-    alpha_c = 0  
-    S = 1 / (1 + cas.exp(-k * (alpha - alpha_c)))
+    # Sigmoid function for combining the linear and non-linear functions
+    k1, k2, k3 = 1, 1, 1
+    S1 = sigmoid(alpha,  0.0,  k1)     # Transition around alpha=0
+    S2 = sigmoid(alpha, 20.0,  k2)     # Transition around alpha=20
+    S3 = sigmoid(alpha, 40.0,  k3)     # Transition by alpha=40
 
-    CL = lin_neg_CL * (1 - S) + lin_pos_CL * S
+    CL = (lin_neg_CL * (1 - S1) + lin_CL_1 * (S1 * (1 - S2)) + quad_CL_1 * (S2 * (1 - S3)) + lin_CL_2 * (S3))
+    # S = sigmoid(alpha, 20.0,  1)     # Transition by alpha=20
+    # lin_CD_1 = 0.00025 * alpha**2 + 0.1
+    # lin_CD_2 = -0.00018 * alpha**2 + 0.03147 * alpha + 0.35627
+    # CD = lin_CD_1 * (1 - S) + lin_CD_2 * S
     CD = 2.165e-04 * alpha**2 +  1.195e-01
     return CL, CD
+
+def sigmoid(alpha_sym, alpha_c, k):
+    return 1.0 / (1.0 + cas.exp(-k*(alpha_sym - alpha_c)))
 
 def get_kite_reference_frame_1p_model(tether_direction, apparent_wind_vector):
     """
     Calculates the reference frame (ex, ey, ez) for the kite.
     """
-    ez = -tether_direction / cas.norm_2(tether_direction)
-    ey = cas.cross(apparent_wind_vector, ez)
-    ey = ey / cas.norm_2(ey)
+    ez =  -tether_direction / cas.norm_2(tether_direction)
+    ey_cross = cas.cross(apparent_wind_vector, ez)
+    ey = ey_cross / cas.norm_2(ey_cross)
     ex = cas.cross(ey, ez)
+    #e_z = ez/cas.norm_2(ez)
+    #e_y = ey/cas.norm_2(ey)
+    #e_x = ex/cas.norm_2(ex)
     return ex, ey, ez
 
 def tether_vector(variables, architecture, node):

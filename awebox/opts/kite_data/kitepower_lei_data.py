@@ -67,7 +67,7 @@ def geometry():
     geometry['beta'] = 74.7 # [deg]
 
     # Depower angle offset 
-    geometry['alpha_0'] = 0.0 # [deg]
+    geometry['alpha_0'] = 4.0 # [deg] # should be 4 .. 10  
 
     # Depower angle 
     geometry['alpha_d_max'] = 31.0 # [deg]
@@ -76,10 +76,10 @@ def geometry():
     geometry['u_d_0'] = 0.231
 
     # Max depower setting
-    geometry['u_d_max'] = 0.4247
+    geometry['u_d_max'] = 0.4247 
 
     # Steering-induced drag coefficient 
-    geometry['K_s_D'] = 0.6 # [-]
+    geometry['K_s_D'] = 0.01 # [-]
 
     # Steering offset c0 
     geometry['c0'] = -0.004 # [-]
@@ -106,7 +106,7 @@ def aero():
     stab_derivs = {}
     aero_validity = {}
 
-    aero_validity['alpha_max_deg'] = 20.0
+    aero_validity['alpha_max_deg'] = 35.0
     aero_validity['alpha_min_deg'] = -20.0
     aero_validity['beta_max_deg'] = 20.0
     aero_validity['beta_min_deg'] = -20.0

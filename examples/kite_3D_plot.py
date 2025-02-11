@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-
+from matplotlib.animation import FuncAnimation
+import matplotlib.lines as mlines  
+from mpl_toolkits.mplot3d import Axes3D
 
 def plot_kite(positions, ex_array, ey_array, ez_array, kite_size):
     """
@@ -17,7 +19,7 @@ def plot_kite(positions, ex_array, ey_array, ez_array, kite_size):
         center = np.array([positions[0][i], positions[1][i], positions[2][i]])
         ex = np.array([ex_array[0][i], ex_array[1][i], ex_array[2][i]])
         ey = np.array([ey_array[0][i], ey_array[1][i], ey_array[2][i]])
-        ez = np.array([ez_array[0][i], ez_array[1][i], ez_array[2][i]])
+        ez = np.array([-ez_array[0][i], -ez_array[1][i], -ez_array[2][i]])
 
         ex /= np.linalg.norm(ex)
         ey /= np.linalg.norm(ey)
@@ -57,7 +59,6 @@ def generate_kite_wing(w, h, curve_height, num_segments):
     """
     # Points for the curvature
     x = np.linspace(-w / 2, w / 2, num_segments + 1)
-    # Points for the curvature
     z = curve_height * (1 - (2 * x / w) ** 2)  
 
    
@@ -97,7 +98,7 @@ def plot_kitepower_similar_wing(panels, positions, ex_array, ey_array, ez_array)
         center = np.array([positions[0][i], positions[1][i], positions[2][i]])
         ex = np.array([ex_array[0][i], ex_array[1][i], ex_array[2][i]])
         ey = np.array([ey_array[0][i], ey_array[1][i], ey_array[2][i]])
-        ez = np.array([ez_array[0][i], ez_array[1][i], ez_array[2][i]])
+        ez = np.array([-ez_array[0][i], -ez_array[1][i], -ez_array[2][i]])
 
         # Normalise vectors
         ex = ex / np.linalg.norm(ex)
@@ -161,3 +162,88 @@ curve_height = 2.23    # Maximum height of the curvature
 num_segments = 10      # Number of panels
 #panels = generate_kite_wing(w, h, curve_height, num_segments)
 #plot_kitepower_similar_wing(panels, positions, ex_array, ey_array, ez_array)
+
+def animate_3d_flight(positions, forces, force_labels):
+    """
+    Creates a 3D animation of a flight path including forces.
+    """
+    pastel_colors = ['#179C7D', '#F58220', '#A6BBC8', '#FF5733', '#4A90E2']  # Extendable color palette
+    
+    pos = np.array(positions)
+    force_vectors = [np.array(f) for f in forces]
+    n_points = pos.shape[1]
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Main flight path, current point, and ground line
+    line, = ax.plot([], [], [], 'gray', lw=1, alpha=0.5, label='Flight Path')
+    point, = ax.plot([], [], [], 'ro', markersize=5, alpha=0.8, label='Object')
+    ground_line, = ax.plot([], [], [], lw=1, alpha=0.8, label='Tether')
+    
+    # Quivers (forces) - to be updated dynamically
+    quivers = [None] * len(forces)
+    
+    # Determine axis limits
+    x_min, x_max = pos[0].min(), pos[0].max()
+    y_min, y_max = pos[1].min(), pos[1].max()
+    z_min, z_max = pos[2].min(), pos[2].max()
+    dx, dy, dz = x_max, y_max, z_max  # Can be adjusted for better scaling
+    
+    # Create dummy lines for forces to show in legend
+    force_legends = [mlines.Line2D([], [], color=color, label=label) for color, label in zip(pastel_colors, force_labels)]
+    
+    def init():
+        ax.set_xlim3d([x_min - dx, x_max + dx])
+        ax.set_ylim3d([y_min - dy, y_max + dy])
+        ax.set_zlim3d([z_min - dz, z_max + dz])
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        
+        line.set_data([], [])
+        line.set_3d_properties([])
+        point.set_data([], [])
+        point.set_3d_properties([])
+        ground_line.set_data([], [])
+        ground_line.set_3d_properties([])
+        
+        # Add legend (includes dummy lines for forces)
+        ax.legend(handles=[line, ground_line] + force_legends)
+        
+        return [line, point, ground_line]
+    
+    def update(frame):
+        nonlocal quivers
+        
+        # Flight path up to current frame
+        line.set_data(pos[0][:frame], pos[1][:frame])
+        line.set_3d_properties(pos[2][:frame])
+        
+        # Current point
+        point.set_data(pos[0][frame], pos[1][frame])
+        point.set_3d_properties(pos[2][frame])
+        
+        # Ground line from (0,0,0) to current position
+        ground_line.set_data([0, pos[0][frame]], [0, pos[1][frame]])
+        ground_line.set_3d_properties([0, pos[2][frame]])
+        
+        # Remove old quivers
+        for q in quivers:
+            if q:
+                q.remove()
+        
+        # Draw new quivers (forces)
+        arrow_length = 100
+        quivers = [ax.quiver(pos[0][frame], pos[1][frame], pos[2][frame],
+                              force[0][frame], force[1][frame], force[2][frame],
+                              color=color, length=arrow_length, normalize=True)
+                   for force, color in zip(force_vectors, pastel_colors)]
+        
+        return [line, point, ground_line] + quivers
+    
+    anim = FuncAnimation(fig, update, frames=n_points, init_func=init,
+                         blit=False, interval=200)
+    plt.show()
+    return anim
+

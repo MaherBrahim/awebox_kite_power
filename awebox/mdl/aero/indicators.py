@@ -158,7 +158,9 @@ def collect_kite_aerodynamics_outputs(options, architecture, atmos, wind, variab
     air_velocity = base_aerodynamic_quantities['air_velocity']
     m_aero_body = base_aerodynamic_quantities['m_aero_body']
     kite_dcm = base_aerodynamic_quantities['kite_dcm']
+
     q = base_aerodynamic_quantities['q']
+    dq = base_aerodynamic_quantities['dq']
 
     parent = architecture.parent_map[kite]
 
@@ -184,6 +186,8 @@ def collect_kite_aerodynamics_outputs(options, architecture, atmos, wind, variab
     outputs['aerodynamics']['air_density' + str(kite)] = rho
     outputs['aerodynamics']['dyn_pressure' + str(kite)] = 0.5 * rho * cas.mtimes(air_velocity.T, air_velocity)
 
+
+
     ehat_chord = kite_dcm[:, 0]
     ehat_span = kite_dcm[:, 1]
     ehat_up = kite_dcm[:, 2]
@@ -191,6 +195,29 @@ def collect_kite_aerodynamics_outputs(options, architecture, atmos, wind, variab
     outputs['aerodynamics']['ehat_chord' + str(kite)] = ehat_chord
     outputs['aerodynamics']['ehat_span' + str(kite)] = ehat_span
     outputs['aerodynamics']['ehat_up' + str(kite)] = ehat_up
+
+    # define the output of LEI-Kite reference frame
+
+    vec_u, kite_dcm_LEI = get_force_vector(options, variables, wind, architecture, parameters, kite, outputs)
+
+    e_x = kite_dcm_LEI[:, 0]
+    e_y = kite_dcm_LEI[:, 1]
+    e_z = kite_dcm_LEI[:, 2]
+
+    outputs['aerodynamics']['e_x' + str(kite)] = e_x
+    outputs['aerodynamics']['e_y' + str(kite)] = e_y
+    outputs['aerodynamics']['e_z' + str(kite)] = e_z
+
+    f_lift, f_drag, f_side = three_dof_kite.get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, wind, architecture, parameters, "forces")
+
+    outputs['aerodynamics']['F_lift_LEI_Kite' + str(kite)] = f_lift
+    outputs['aerodynamics']['F_drag_LEI_Kite' + str(kite)] = f_drag
+    outputs['aerodynamics']['F_side_LEI_Kite' + str(kite)] = f_side
+
+    outputs['aerodynamics']['vec_u' + str(kite)] = vec_u
+    outputs['aerodynamics']['true_vec_u' + str(kite)] = wind.get_velocity(q[2]) - dq
+    outputs['aerodynamics']['arccos_alpha' + str(kite)] = cas.arccos(cas.mtimes(vec_u.T, kite_dcm[:, 0])/ cas.norm_2(vec_u))
+
 
     ortho = cas.reshape(cas.mtimes(kite_dcm.T, kite_dcm) - np.eye(3), (9, 1))
     ortho_resi = cas.mtimes(ortho.T, ortho)
@@ -317,14 +344,21 @@ def collect_aero_validity_outputs(options, base_aerodynamic_quantities, outputs,
     elif options['wing_type'] == 'LEI':
         vec_u, _ = get_force_vector(options, variables, wind, architecture, parameters, kite, outputs)
         coeff = variables['x']['coeff' + str(kite) + '0']
-        alpha = three_dof_kite.get_alpha_LEI(vec_u, kite_dcm, coeff, parameters)
-        alpha_ub = alpha - alpha_max
+        dq = variables['x']['dq' + str(kite) + str(kite-1)]  
+        q = variables['x']['q' + str(kite) + str(kite-1)] 
+        wind_velocity = wind.get_velocity(q[2])
+        alpha = three_dof_kite.get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, dq, wind_velocity)
+        cl, cd = three_dof_kite.get_aerodynamic_coefficient(alpha)
+        alpha_ub =  alpha - alpha_max
         alpha_lb = - alpha + alpha_min
+    
+    outputs['aerodynamics']['CL_LEI_Kite' + str(kite)] = cl
+    outputs['aerodynamics']['CD_LEI_Kite' + str(kite)] = cd
 
-    # outputs['aero_validity']['alpha_ub' + str(kite)] = alpha_ub
-    # outputs['aero_validity']['alpha_lb' + str(kite)] = alpha_lb
+     
+    outputs['aero_validity']['alpha_ub' + str(kite)] = alpha_ub
+    outputs['aero_validity']['alpha_lb' + str(kite)] = alpha_lb
 
-    # das hier mit einem if statment rausnehmen: 
     if options['wing_type'] == 'rigid_wing':
       outputs['aero_validity']['beta_ub' + str(kite)] = beta_ub
       outputs['aero_validity']['beta_lb' + str(kite)] = beta_lb

@@ -26,6 +26,7 @@
 Simulation class for open-loop and closed-loop simulations based on awebox reference trajectories
 and related models.
 :author: Jochem De Schutter - ALU Freiburg 2019
+- edited: Maher Brahim - ALU Freiburg 2025
 """
 
 
@@ -115,7 +116,7 @@ class Simulation:
 
         return None
 
-    def run(self, n_sim, x0 = None, u_sim = None):
+    def run(self, n_sim, x0 = None, u_sim = None, time = None):
         """ Run simulation
         """
 
@@ -123,7 +124,7 @@ class Simulation:
 
         # TODO: check consistency of initial conditions and give warning
 
-        x0 = self.__initialize_sim(n_sim, x0, u_sim)
+        x0 = self.__initialize_sim(n_sim, x0, u_sim, time)
 
         with ChargingBar('Simulating...', max = n_sim, fill='#') as bar:
             for i in range(n_sim):
@@ -133,10 +134,10 @@ class Simulation:
                     u0 = self.__mpc.step(x0, self.__mpc_options['plot_flag'])
 
                 elif self.__sim_type == 'open_loop':
-                    u0 = self.__u_sim[:, i]
+                    u0 = cas.DM(u_sim[i,:].full().flatten())
 
                 # simulate
-                var_next = self.__F(x0=x0, p=u0, z0=self.__mpc.z0)
+                var_next = self.__F(x0=x0, p=u0, z0=0.1)
                 self.__store_results(x0, u0, var_next['qf'])
 
                 # shift initial state
@@ -153,7 +154,7 @@ class Simulation:
 
         return None
 
-    def __initialize_sim(self, n_sim, x0, u_sim):
+    def __initialize_sim(self, n_sim, x0, u_sim, time):
         """ Initialize simulation.
         """
 
@@ -169,13 +170,14 @@ class Simulation:
                 self.__trial.options['nlp'],
                 self.__trial.optimization.V_opt)
             T_ref = self.__trial.visualization.plot_dict['time_grids']['ip'][-1]
-            t_grid = np.linspace(0, n_sim*self.__ts, n_sim)
+            t_grid = time
             self.__t_grid = ct.vertcat(*list(map(lambda x: x % T_ref, t_grid))).full().squeeze()
-            for name in list(self.__trial.model.variables_dict['u'].keys()):
-                for j in range(self.__trial.model.variables_dict['u'][name].shape[0]):
-                    values_ip_u.append(list(interpolator(t_grid, name, j,'u').full()))
+            #for name in list(self.__trial.model.variables_dict['u'].keys()):
+            #    for j in range(self.__trial.model.variables_dict['u'][name].shape[0]):
+            #        values_ip_u.append(list(interpolator(t_grid, name, j,'u').full()))
 
-            self.__u_sim = ct.horzcat(*values_ip_u)
+            #self.__u_sim = ct.horzcat(*values_ip_u)
+            self.__u_sim = u_sim
 
         # initialize algebraic variables for integrator
         self.__z0 = 0.1

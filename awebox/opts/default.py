@@ -477,7 +477,7 @@ def set_default_options(default_user_options, help_options):
         ('solver',  'health_check',     None,       'filename_identifier',      '',     ('string to use when saving the health indicators', None), 'x'),
 
         ### simulation options
-        ('sim', None,  None,    'number_of_finite_elements',  20,                 ('Integrator steps in one sampling interval', None), 'x'),
+        ('sim', None,  None,    'number_of_finite_elements',  50,                 ('Integrator steps in one sampling interval', None), 'x'),
         ('sim', None,  None,    'sys_params',                 None,               ('system parameters dict', None), 'x'),
 
         ### mpc options

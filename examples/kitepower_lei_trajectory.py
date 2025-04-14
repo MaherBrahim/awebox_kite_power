@@ -30,18 +30,18 @@ options['user_options.system_model.kite_dof'] = 3
 # indicate desired operation mode
 options['user_options.trajectory.type'] = 'power_cycle'
 options['user_options.trajectory.system_type'] = 'lift_mode'
-windings = 1
+windings = 5
 options['user_options.trajectory.lift_mode.windings'] = windings
 
 # indicate desired environment
 options['params.wind.z_ref'] = 100.0
 options['params.wind.power_wind.exp_ref'] = 0.15
 options['user_options.wind.model'] = 'power'
-options['user_options.wind.u_ref'] = 10.
+options['user_options.wind.u_ref'] = 6.
 
 # coefficient boundaries
 options['model.system_bounds.x.coeff'] =  [np.array([-1., 0.]), np.array([1., 1.])]
-options['model.system_bounds.u.dcoeff'] =  [np.array([-.08, -.08]), np.array([.08, .08])]
+options['model.system_bounds.u.dcoeff'] =  [np.array([-.08, -1]), np.array([.08, 1])]
 
 # indicate numerical nlp details
 # here: nlp discretization, with a zero-order-hold control parametrization, and
@@ -49,10 +49,11 @@ options['model.system_bounds.u.dcoeff'] =  [np.array([-.08, -.08]), np.array([.0
 # within ipopt.
 options['nlp.n_k'] = int(40/3 * windings)
 options['nlp.collocation.u_param'] = 'zoh'
-options['user_options.trajectory.lift_mode.phase_fix'] = 'simple' # 'single_reelout'
+options['user_options.trajectory.lift_mode.phase_fix'] = 'single_reelout' # 'simple' # 'single_reelout'
 options['solver.linear_solver'] = 'mumps'  # if HSL is installed, otherwise 'mumps'
 options['model.system_bounds.x.ddl_t'] = [-2.0, 2.0]
-options['model.system_bounds.theta.t_f'] = [0.0, windings*20.0]
+options['model.system_bounds.theta.t_f'] = [0.0, windings*30.0]
+options['nlp.phase_fix_reelout'] = 0.7 
 
 options['model.model_bounds.acceleration.include']  = False
 options['model.model_bounds.aero_validity.include']  = False
@@ -67,7 +68,7 @@ options['solver.initialization.shape'] = 'lemniscate'
 options['solver.initialization.lemniscate.az_width'] = 20*np.pi/180.
 options['solver.initialization.lemniscate.el_width'] = 8*np.pi/180.
 options['solver.initialization.inclination_deg'] = 30.
-options['solver.initialization.groundspeed'] = 30.
+options['solver.initialization.groundspeed'] = 20.
 options['solver.initialization.theta.diam_t'] = 5e-3
 options['solver.initialization.l_t'] = 300.0
 options['solver.max_iter_hippo'] = 1000
@@ -77,7 +78,7 @@ options['visualization.cosmetics.plot_ref'] = False
 # build and optimize the NLP (trial)
 trial = awe.Trial(options, 'Kitepower_LEI')
 trial.build()
-trial.optimize(final_homotopy_step = 'final')
+trial.optimize(final_homotopy_step = 'power')  # 'initial_guess', 'initial', 'fictitious', 'power', 'final'
 
 
 
@@ -222,13 +223,13 @@ plot_kitepower_similar_wing(panels, kite_positions, e_y, e_x, e_z)
 animate_3d_flight(kite_positions, [lift_force, drag_force, side_force], force_labels=["Lift Force", "Drag Force", "Side Force"])
 
 
-# animate_3d_flight(kite_positions, [e_x, e_y, e_z], force_labels=["e_x", "e_y", "e_z"])
+animate_3d_flight(kite_positions, [e_x, e_y, e_z], force_labels=["e_x", "e_y", "e_z"])
 
 wind = plot_dict['outputs']['aerodynamics']['u_infty1']
 apparent_wind = plot_dict['outputs']['aerodynamics']['vec_u1']
 kite_vel = plot_dict['x']['dq10']
 true_apparent_wind = plot_dict['outputs']['aerodynamics']['true_vec_u1']
-# animate_3d_flight(kite_positions, [e_x, wind, kite_vel, apparent_wind, true_apparent_wind], force_labels=["e_x", "wind", "kite_vel", "apparent wind", "true_apparent_wind"])
+animate_3d_flight(kite_positions, [e_x, wind, kite_vel, apparent_wind, true_apparent_wind], force_labels=["e_x", "wind", "kite_vel", "apparent wind", "true_apparent_wind"])
 
 plt.show()
 

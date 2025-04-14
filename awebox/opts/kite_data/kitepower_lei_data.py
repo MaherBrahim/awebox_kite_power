@@ -42,44 +42,44 @@ def geometry():
 
     geometry = {}
     geometry['b_ref'] = 5 # fill in some meaningful value
-    geometry['s_ref'] = 10.18  # [m^2]
+    geometry['s_ref'] = 46.86  # [m^2]
     geometry['c_ref'] = geometry['s_ref']  / geometry['b_ref']  # [m]
     
     # TODO: add all relevant parameters here
     geometry['ar'] = 10.0 # can be deleted later
  
-    # kite mass + KCU ?
-    geometry['m_k'] = 6.21 + 8.4  # [kg]
+    # kite mass + KCU 
+    geometry['m_k'] = 62 + 31.6  # [kg]
 
     # tether attachment point
     geometry['r_tether'] = np.zeros((3,1))
 
-    # steering coefficient
+    # steering coefficient        #??
     geometry['c_s'] = 2.59 # [-]
 
     # correction factor
     geometry['c2_s'] = 0.93 # [-]
 
     # Relative side area 
-    geometry['A_side/A'] = 0.306 # [-]
+    geometry['A_side/A'] = 0.46 # [-]
 
-    # Straight tether elevation angle
-    geometry['beta'] = 74.7 # [deg]
+    # Straight tether elevation angle / initial elevation angle   [deg]
+    geometry['beta'] = 62 # [deg]
 
     # Depower angle offset 
-    geometry['alpha_0'] = 4.0 # [deg] # should be 4 .. 10  
+    geometry['alpha_0'] = 6.0 # [deg] # should be 4 .. 10  
 
     # Depower angle 
-    geometry['alpha_d_max'] = 31.0 # [deg]
+    geometry['alpha_d_max'] = 31.0  # [deg]
 
     # Depower offset
-    geometry['u_d_0'] = 0.231
+    geometry['u_d_0'] = 0.38
 
     # Max depower setting
     geometry['u_d_max'] = 0.4247 
 
     # Steering-induced drag coefficient 
-    geometry['K_s_D'] = 0.01 # [-]
+    geometry['K_s_D'] = 0.001 # [-]
 
     # Steering offset c0 
     geometry['c0'] = -0.004 # [-]
@@ -89,6 +89,9 @@ def geometry():
 
     # Steering constant c2
     geometry['c2'] = 6.20  # [rad m/s^2]
+
+    # Bridle Height
+    geometry['h_bridle'] = 11.08 # [m]
 
     return geometry
 

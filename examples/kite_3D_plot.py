@@ -163,6 +163,15 @@ num_segments = 10      # Number of panels
 #panels = generate_kite_wing(w, h, curve_height, num_segments)
 #plot_kitepower_similar_wing(panels, positions, ex_array, ey_array, ez_array)
 
+
+def draw_lightning(ax, position, color, scale):
+    points = [(0, 0), (1, 3), (0.5, 3), (1.5, 6), (0, 4), (0.5, 4)]
+
+    points3d = [((x * scale) + position[0], (y * scale) + position[1], position[2]) for (x, y) in points]
+
+    poly = Poly3DCollection([points3d], facecolors=color, edgecolors='black', linewidths=1, alpha=0.7)
+    ax.add_collection3d(poly)
+
 def animate_3d_flight(positions, forces, force_labels):
     """
     Creates a 3D animation of a flight path including forces.
@@ -175,6 +184,7 @@ def animate_3d_flight(positions, forces, force_labels):
     
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
+
     
     # Main flight path, current point, and ground line
     line, = ax.plot([], [], [], 'gray', lw=1, alpha=0.5, label='Flight Path')
@@ -183,6 +193,10 @@ def animate_3d_flight(positions, forces, force_labels):
     
     # Quivers (forces) - to be updated dynamically
     quivers = [None] * len(forces)
+
+    lightning_size = 2
+    threshold = 200
+    lightning_art = [None]
     
     # Determine axis limits
     x_min, x_max = pos[0].min(), pos[0].max()
@@ -240,10 +254,38 @@ def animate_3d_flight(positions, forces, force_labels):
                               color=color, length=arrow_length, normalize=True)
                    for force, color in zip(force_vectors, pastel_colors)]
         
-        return [line, point, ground_line] + quivers
+        kite_pos = np.array([pos[0][frame], pos[1][frame], pos[2][frame]])
+        distance = np.linalg.norm(kite_pos)
+        lightning_color = 'yellow' if distance >= threshold else 'red'
+        if lightning_art[0] is not None:
+            lightning_art[0].remove()
+        lightning_art[0] = draw_lightning(ax, (2 * lightning_size, 0, 0), lightning_color, lightning_size)
+        return [line, point, ground_line] + quivers + [lightning_art[0]]
     
     anim = FuncAnimation(fig, update, frames=n_points, init_func=init,
                          blit=False, interval=200)
     plt.show()
     return anim
+
+def plot_xy(x, y_series, labels, xlabel='X-Achse', ylabel='Y-Achse', title='XY Plot', figsize=(10,6)):
+    fig, ax = plt.subplots(figsize=figsize)
+    for y, label in zip(y_series, labels):
+        ax.plot(x, y, label=label)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True)
+    return fig, ax
+
+def plot_xyz(x, y, z, xlabel='X-Achse', ylabel='Y-Achse', zlabel='Z-Achse', title='XYZ Plot'):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot(x, y, z, marker='.', markersize=4, linestyle='-')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
+    ax.set_title(title)
+    ax.grid(True)
+    return fig, ax
 

@@ -182,16 +182,16 @@ def get_aerodynamic_coefficient(alpha):
 
     
 
-    lin_neg_CL= 0.0058 * alpha + 0.204
-    lin_CL_1 = 0.04 * alpha + 0.2
-    lin_CL_2 = -0.02 * alpha + 1.8
-    quad_CL_1 = -0.001 * alpha **2 + 0.06 * alpha + 0.2
+    lin_neg_CL= 0.0385 * alpha + 0.2542
+    lin_CL_1 = 0.0641 * alpha + 0.2411
+    lin_CL_2 = -0.0160 * alpha + 1.4400
+    quad_CL_1 = -0.00138 * alpha **2 + 0.06375 * alpha + 0.46429
     
 
     # Sigmoid function for combining the linear and non-linear functions
-    k1, k2, k3 = 1, 1, 1
+    k1, k2, k3, k4 = 2, 2, 2, 1
     S1 = sigmoid(alpha,  0.0,  k1)     # Transition around alpha=0
-    S2 = sigmoid(alpha, 20.0,  k2)     # Transition around alpha=20
+    S2 = sigmoid(alpha, 12.0,  k2)     # Transition around alpha=20
     S3 = sigmoid(alpha, 40.0,  k3)     # Transition by alpha=40
 
     CL = (lin_neg_CL * (1 - S1) + lin_CL_1 * (S1 * (1 - S2)) + quad_CL_1 * (S2 * (1 - S3)) + lin_CL_2 * (S3))
@@ -199,7 +199,11 @@ def get_aerodynamic_coefficient(alpha):
     # lin_CD_1 = 0.00025 * alpha**2 + 0.1
     # lin_CD_2 = -0.00018 * alpha**2 + 0.03147 * alpha + 0.35627
     # CD = lin_CD_1 * (1 - S) + lin_CD_2 * S
-    CD = 2.165e-04 * alpha**2 +  1.195e-01
+    quad_neg_CD = 0.00037* alpha **2 + 0.00747 * alpha + 0.06000
+    lin_pos_CD = 0.01073 * alpha + 0.05875
+    S = sigmoid(alpha,  8.0,  k4)
+    CD = quad_neg_CD * (1 - S) + lin_pos_CD * S
+
     return CL, CD
 
 def sigmoid(alpha_sym, alpha_c, k):

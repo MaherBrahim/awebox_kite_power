@@ -5,6 +5,7 @@ from matplotlib.animation import FuncAnimation
 import matplotlib.lines as mlines  
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.signal import savgol_filter
+import matplotlib.colors as mcolors
 
 def plot_kite(positions, ex_array, ey_array, ez_array, kite_size):
     """
@@ -288,6 +289,33 @@ def plot_xyz(x, y, z, xlabel='X-Achse', ylabel='Y-Achse', zlabel='Z-Achse', titl
     ax.set_zlabel(zlabel)
     ax.set_title(title)
     ax.grid(True)
+    return fig, ax
+
+import matplotlib.pyplot as plt
+
+def plot_xy_mixed(x_list, y_groups, labels_groups,
+                  xlabel='x', ylabel='y', title='', pastel_alpha=0.5):
+    """
+    Plot groups of y-series against their respective x-axis on a single plot.
+    """
+    base_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    fig, ax = plt.subplots()
+    
+    for group_idx, (x, y_list, labels) in enumerate(zip(x_list, y_groups, labels_groups)):
+        for i, (y, lbl) in enumerate(zip(y_list, labels)):
+            color = mcolors.to_rgba(base_colors[i % len(base_colors)])
+            if group_idx == 1:
+                # pastel = blend with white
+                pastel_color = tuple(1 - (1 - c)*pastel_alpha for c in color[:3]) + (color[3],)
+                ax.plot(x, y, marker='.', linestyle='-', label=lbl, color=pastel_color)
+            else:
+                ax.plot(x, y, marker='.', linestyle='-', label=lbl, color=color)
+    
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.grid(True)
+    ax.legend()
     return fig, ax
 
 

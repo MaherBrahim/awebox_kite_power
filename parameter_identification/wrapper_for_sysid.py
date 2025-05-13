@@ -137,7 +137,7 @@ def get_bounds():
         'x': {
             'q':    ca.DM([-ca.inf, -ca.inf, 10.0]),
             'dq':   ca.DM([ -ca.inf, -ca.inf, -ca.inf ]),
-            'u_s':  ca.DM([ -100.0 ]),
+            'u_s':  ca.DM([ -1. ]),
             'u_d':  ca.DM([ 0.0 ]),
             'l_t':  ca.DM([ 1.0e-2]),
             'dl_t': ca.DM([ -30.0 ]),
@@ -151,7 +151,7 @@ def get_bounds():
             'lambda': ca.DM([ 1]),
         },  
         'p': {
-            'K_s,D': ca.DM([ -10.0 ]),
+            'K_s,D': ca.DM([ 0.0 ]),
         }
     }
 
@@ -160,8 +160,8 @@ def get_bounds():
         'x': {
             'q':    ca.DM([ca.inf, ca.inf, ca.inf]),
             'dq':   ca.DM([ ca.inf, ca.inf, ca.inf]),
-            'u_s':  ca.DM([ 100. ]),
-            'u_d':  ca.DM([ 100. ]),
+            'u_s':  ca.DM([ 1. ]),
+            'u_d':  ca.DM([ 1.]),
             'l_t':  ca.DM([ 1.0e3 ]),
             'dl_t': ca.DM([ 30.0]),
         },
@@ -174,7 +174,7 @@ def get_bounds():
             'lambda': ca.DM([ ca.inf]),
         },
         'p': {
-            'K_s,D': ca.DM([ 10.0 ]),
+            'K_s,D': ca.DM([ 2.0 ]),
         }
     }
 
@@ -189,8 +189,8 @@ def get_scaled_bounds(model):
     # Lower-Bounds
     lbs = {
         'x': {
-            'q':    ca.DM([-ca.inf, -ca.inf, 10.0/model.scaling['x'][2]]),
-            'dq':   ca.DM([ -ca.inf, -ca.inf, -ca.inf ]),
+            'q':    ca.DM([-ca.inf/model.scaling['x'][0], -ca.inf/model.scaling['x'][1], 10.0/model.scaling['x'][2]]),
+            'dq':   ca.DM([ -ca.inf/model.scaling['x'][3], -ca.inf/model.scaling['x'][4], -ca.inf/model.scaling['x'][5] ]),
             'u_s':  ca.DM([ -1.0 /model.scaling['x'][6]]),
             'u_d':  ca.DM([ 0.0 /model.scaling['x'][7]]),
             'l_t':  ca.DM([ 1.0e-2/	model.scaling['x'][8]]),
@@ -206,14 +206,15 @@ def get_scaled_bounds(model):
         },  
         'p': {
             'K_s,D': ca.DM([ 0.0 ]),
+            'c_s' : ca.DM([0.0]),
         }
     }
 
     # Upper-Bounds
     ubs = {
         'x': {
-            'q':    ca.DM([ca.inf, ca.inf, ca.inf]),
-            'dq':   ca.DM([ ca.inf, ca.inf, ca.inf]),
+            'q':    ca.DM([ca.inf/model.scaling['x'][0], ca.inf/model.scaling['x'][1], ca.inf/model.scaling['x'][2]]),
+            'dq':   ca.DM([ ca.inf /model.scaling['x'][3], ca.inf/model.scaling['x'][4], ca.inf/model.scaling['x'][5]]),
             'u_s':  ca.DM([ 1. / model.scaling['x'][6]]),    
             'u_d':  ca.DM([ 1. / model.scaling['x'][7]]),
             'l_t':  ca.DM([ 1.0e3 / model.scaling['x'][8]]), 
@@ -228,7 +229,8 @@ def get_scaled_bounds(model):
             'lambda': ca.DM([ ca.inf /model.scaling['z'][0]]),
         },
         'p': {
-            'K_s,D': ca.DM([ 1.0 ]),
+            'K_s,D': ca.DM([ 2.0 ]),
+            'c_s' : ca.DM([5.0]),
         }
     }
 

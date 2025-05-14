@@ -76,7 +76,7 @@ def discrete_derivative(time, position):
     return derivative
 
 def rotate_enu(wind_angle, east, north, up):
-    angle = np.radians(wind_angle- 270)
+    angle = np.deg2rad(wind_angle-270) 
     R = np.array([[np.cos(angle), -np.sin(angle), 0],
                   [np.sin(angle),  np.cos(angle), 0],
                   [0,              0,             1]])

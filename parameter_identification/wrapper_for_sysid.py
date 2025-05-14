@@ -140,7 +140,7 @@ def get_bounds():
             'u_s':  ca.DM([ -1. ]),
             'u_d':  ca.DM([ 0.0 ]),
             'l_t':  ca.DM([ 1.0e-2]),
-            'dl_t': ca.DM([ -30.0 ]),
+            'dl_t': ca.DM([ -5.0 ]),
         },
         'u': {
             'du_s': ca.DM([ -.08 ]),
@@ -163,11 +163,11 @@ def get_bounds():
             'u_s':  ca.DM([ 1. ]),
             'u_d':  ca.DM([ 1.]),
             'l_t':  ca.DM([ 1.0e3 ]),
-            'dl_t': ca.DM([ 30.0]),
+            'dl_t': ca.DM([ 5.0]),
         },
         'u': {
             'du_s': ca.DM([ .08 ]),
-            'du_d': ca.DM([ 1. ]),
+            'du_d': ca.DM([ 0.1 ]),
             'ddlt': ca.DM([ 2. ]),
         },
         'z': {
@@ -198,7 +198,7 @@ def get_scaled_bounds(model):
         },
         'u': {
             'du_s': ca.DM([ -.08 / model.scaling['u'][0]]),
-            'du_d': ca.DM([ -1. / model.scaling['u'][1]]),
+            'du_d': ca.DM([ -0.1 / model.scaling['u'][1]]),
             'ddlt': ca.DM([ -2.0 / model.scaling['u'][2]]),
         },
         'z': {
@@ -222,8 +222,8 @@ def get_scaled_bounds(model):
         },
         'u': {
             'du_s': ca.DM([ .08 / model.scaling['u'][0]]),
-            'du_d': ca.DM([ 1. / model.scaling['u'][1]]),
-            'ddlt': ca.DM([ 2. / model.scaling['u'][2]]),
+            'du_d': ca.DM([ .1 / model.scaling['u'][1]]),
+            'ddlt': ca.DM([ 2.0 / model.scaling['u'][2]]),
         },
         'z': {
             'lambda': ca.DM([ ca.inf /model.scaling['z'][0]]),

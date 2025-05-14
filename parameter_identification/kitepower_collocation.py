@@ -1,4 +1,4 @@
-import casadi as ca
+import casadi as ca, pathlib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ import awebox.opts.kite_data.kitepower_lei_data as kite_data
 from wrapper_for_sysid import generate_implicit_dae_F, get_bounds, flatten_group_bounds, get_scaled_bounds, get_scaled_vars, get_reverse_rescaled_vars
 from rk_utils import generate_butcher_tableau_integral
 from scipy.signal import savgol_filter
-from plotting import plot_xy, plot_xyz, plot_xy_mixed,  animate_3d_flight, is_gaussian_noise
+from plotting import plot_xy, plot_xyz, plot_xy_mixed,plot_3d_mixed,   animate_3d_flight, is_gaussian_noise
 from kalman_filter import  kalman_filter_for_tether, kalman_filter_derivation
 from  measurement_processing import rotate_enu, remove_outliers, interpolate_data, noise_estimation, get_weighted_cov
 from awebox.opts.kite_data.kitepower_lei_data import data_dict as data_dict_func
@@ -20,12 +20,32 @@ import awebox.opts.kite_data.ampyx_ap2_settings as ampyx_ap2_settings
 import os
 import json
 
+import os, sys, pathlib, ctypes
+
+dll_dir = pathlib.Path(
+    r"C:\Users\maher\OneDrive\Desktop\Masterarbeit\Code2.0\awebox_kite_power\toolchain\bin"
+)
+
+# Windows findet die Abhängigkeits‑DLLs nur, wenn das Verzeichnis bekannt ist
+if sys.version_info >= (3, 8):
+    os.add_dll_directory(str(dll_dir))       # moderner Weg
+else:
+    os.environ["PATH"] = str(dll_dir) + os.pathsep + os.environ["PATH"]
+
+# Jetzt die HSL‑DLL laden (vollem Pfad!)
+ctypes.CDLL(str(dll_dir / "libhsl.dll"))
+print("libhsl.dll erfolgreich geladen")
+
 def setup_model():
     """
     Set up the model and options for the kitepower system.
     """
+    upwind_direction_without_outliers = remove_outliers(data['est_upwind_direction'], 50, 100)
+    upwind_direction_filtered = interpolate_data(upwind_direction_without_outliers)
+    upwind_direction_mean = np.mean(upwind_direction_filtered)
     # Load the options
     options_seed = {} 
+    options_seed['user_options.wind.u_ref'] = upwind_direction_mean
     options_seed = ampyx_ap2_settings.set_kitepower_lei_settings(options_seed)
     options = opts.Options()
     options.fill_in_seed(options_seed)
@@ -101,8 +121,8 @@ def setup_collocation(n_s:int, N_fe, t_meas: np.ndarray, y_meas: np.ndarray,
     lb_p, ub_p = flatten_group_bounds(lb_scaled, ub_scaled, "p")
 
     # define the penalty weights for slack variables
-    W_s_dae = 1e5
-    W_s_tether = 1e9   
+    W_s_dae = 1e29
+    W_s_tether = 1e29   
 
     # Continuous time dynamics
     n_param = 0
@@ -232,8 +252,9 @@ def setup_collocation(n_s:int, N_fe, t_meas: np.ndarray, y_meas: np.ndarray,
                 Zk_end = Zk_end + D[j] * Zc[j - 1]
                 dae_slack_cost = W_s_dae * (slack_dae.T @ slack_dae)
                 objective += dae_slack_cost
+                tether_slack_cost = (slack_tether.T @ W_s_tether  @ slack_tether)
                 
-            tether_slack_cost = (slack_tether.T @ W_s_tether  @ slack_tether)
+            
             objective +=  ((((y_meas[:, k+1] - Xk_end).T @ W_y @ (y_meas[:, k+1] - Xk_end)) )  +  
                            (theta-theta_hat).T @ W_theta @ (theta-theta_hat) + 
                            tether_slack_cost)
@@ -313,9 +334,13 @@ def collocation_for_LSP (n_s, N_fe, t_meas, y_meas, u_meas,x0, z0, W_y, W_theta,
     # setup the collocation problem
     nlp, casadi_nlp, plt_data  = setup_collocation(n_s, N_fe, t_meas, y_meas, u_meas, x0, z0, W_y, W_theta, theta_hat)
 
-    opts = {"ipopt": {
-            "print_level": 5,
-            "check_derivatives_for_naninf": "yes"}} 
+    
+    opts = {
+    "ipopt": {
+        "linear_solver": "ma27",                     # MA27 wirklich aktivieren
+        "hsllib": str(dll_dir / "libhsl.dll"),
+        }
+    }
     solver = ca.nlpsol('solver', 'ipopt', casadi_nlp, opts)
 
 
@@ -416,10 +441,10 @@ if __name__ == "__main__":
     W_theta[0,0] = 1e-10
     W_theta[1,1] = 1e-10
 
-    theta_hat = ca.DM([0.0, 1])
+    theta_hat = ca.DM([0.0, 1.])
     
     
-    Nm =5
+    Nm = 20
     N= Nm-1
     # define the number of collocation points and the number of finite elements
     n_s= 3
@@ -470,6 +495,7 @@ if __name__ == "__main__":
     print('=======================================================================')
 
     fig_q, ax_q = plot_xy_mixed([t_grid[:], t_meas[:Nm]], [[x_opt_rescaled[0,:], x_opt_rescaled[1,:], x_opt_rescaled[2,:]], [ x[:Nm], y[:Nm], z[:Nm]]], labels_groups=[['x_opt_rescaled_1', 'x_opt_rescaled_2', 'x_opt_rescaled_3'],['x', 'y', 'z']], xlabel='time (s)', ylabel='position (m) ', title='kite position from collocation and measurment values (filtered)')
+    fig_q_3d, ax_q_3d = plot_3d_mixed([[(x_opt_rescaled[0,:], x_opt_rescaled[1,:], x_opt_rescaled[2,:])], [(x[:Nm], y[:Nm], z[:Nm])]], labels_groups=[['q_opt_rescaled'], ['q_mesured' ]],title='kite position from collocation and measurment values (filtered)')
     fig_v, ax_v = plot_xy_mixed([t_grid[:], t_meas[:Nm]], [[x_opt_rescaled[3,:], x_opt_rescaled[4,:], x_opt_rescaled[5,:]], [v_x[:Nm], v_y[:Nm], v_z[:Nm]]], labels_groups=[['v_x_opt_rescaled', 'v_y_opt_rescaled', 'v_z_opt_rescaled'], ['v_x', 'v_y', 'v_z']], xlabel='time (s)', ylabel='velocity (m/s) ', title='kite velocity from collocation and measurment values (filtered)')
     fig_u, ax_u = plot_xy_mixed([t_grid[:], t_meas[:Nm]], [[x_opt_rescaled[6,:], x_opt_rescaled[7,:]], [u_s[:Nm], u_d[:Nm]]], labels_groups=[['u_s_opt_rescaled', 'u_d_opt_rescaled'], ['u_s', 'u_d']], xlabel='time (s)', ylabel='steering ', title='kite steering from collocation and measurment values (filtered)')
     fig_l_t, ax_l_t = plot_xy_mixed([t_grid[:], t_meas[:Nm]], [[x_opt_rescaled[8,:]], [l_t_with_offset[:Nm]]], labels_groups=[['l_t_opt_rescaled'], ['l_t']], xlabel='time (s)', ylabel='tether length (m) ', title='kite tether length from collocation and measurment values (filtered)')

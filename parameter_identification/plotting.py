@@ -319,6 +319,66 @@ def plot_xy_mixed(x_list, y_groups, labels_groups,
     return fig, ax
 
 
+def plot_3d_mixed(traj_groups, labels_groups,
+                  xlabel='X', ylabel='Y', zlabel='Z', title='',
+                  pastel_alpha=0.5):
+    """
+    Plot 3D trajectories in two groups (bold vs. pastel) and enforce equal scaling
+    on X, Y, Z axes so that spatial proportions are accurate.
+    
+    """
+    # Get the default color cycle
+    base_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    
+    # Create a 3D figure and axis
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Plot each group: first group in solid, second in pastel
+    for group_idx, (trajs, labels) in enumerate(zip(traj_groups, labels_groups)):
+        for i, ((X, Y, Z), lbl) in enumerate(zip(trajs, labels)):
+            rgba = mcolors.to_rgba(base_colors[i % len(base_colors)])
+            if group_idx == 0:
+                # Solid (bold) color for the first group
+                ax.plot(X, Y, Z, marker='.', linestyle='-', label=lbl, color=rgba)
+            else:
+                # Create a pastel variant by blending with white
+                pastel_rgb = tuple(1 - (1 - c) * pastel_alpha for c in rgba[:3])
+                pastel_rgba = (*pastel_rgb, rgba[3])
+                ax.plot(X, Y, Z, marker='.', linestyle='-', label=lbl, color=pastel_rgba)
+    
+    # Label axes and set title
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
+    ax.set_title(title)
+    ax.legend()
+    
+    # Enforce equal scaling on all axes for a correct 3D aspect
+    try:
+        # Available in Matplotlib >= 3.3
+        ax.set_box_aspect((1, 1, 1))
+    except AttributeError:
+        # Fallback for older Matplotlib: manually adjust limits
+        x_limits = ax.get_xlim3d()
+        y_limits = ax.get_ylim3d()
+        z_limits = ax.get_zlim3d()
+        x_range = x_limits[1] - x_limits[0]
+        y_range = y_limits[1] - y_limits[0]
+        z_range = z_limits[1] - z_limits[0]
+        max_range = max(x_range, y_range, z_range)
+        x_mid = sum(x_limits) / 2
+        y_mid = sum(y_limits) / 2
+        z_mid = sum(z_limits) / 2
+        ax.set_xlim3d(x_mid - max_range/2, x_mid + max_range/2)
+        ax.set_ylim3d(y_mid - max_range/2, y_mid + max_range/2)
+        ax.set_zlim3d(z_mid - max_range/2, z_mid + max_range/2)
+    
+    plt.tight_layout()
+    return fig, ax
+
+
+
 def is_gaussian_noise(
     data: np.ndarray,
     window_length: int = 21,

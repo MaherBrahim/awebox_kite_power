@@ -1,6 +1,7 @@
 #!usr/bin/python3
 
 import awebox.tools.print_operations as print_op
+import awebox.opts.kite_data.kitepower_lei_data as kitepower_lei_data
 import awebox as awe
 import numpy as np
 import casadi as ca
@@ -70,3 +71,45 @@ def set_ampyx_ap2_settings(options):
 
 
     return options
+
+def set_kitepower_lei_settings(options):
+    # indicate desired system architecture
+    options['user_options.system_model.architecture'] = {1: 0}
+    options['user_options.kite_standard'] = kitepower_lei_data.data_dict()
+    options['user_options.system_model.wing_type'] = 'LEI'
+    options['user_options.system_model.kite_dof'] = 3
+    options['model.tether.control_var'] = 'ddl_t'
+    # tether drag model (more accurate than the Argatov model in Licitra2019)
+    options['user_options.tether_drag_model'] = 'multi'
+    options['model.tether.aero_elements'] = 5
+
+    # tether force limit
+    options['model.model_bounds.tether_stress.include'] = False
+    options['model.model_bounds.tether_force.include'] = True
+    # options['params.model_bounds.tether_force_limits'] = np.array([50, 1800.0])
+
+    # flight envelope
+    options['model.model_bounds.airspeed.include'] = True
+    # options['params.model_bounds.airspeed_limits'] = np.array([10, 32.0])
+    options['model.model_bounds.aero_validity.include'] = True
+    options['user_options.kite_standard.aero_validity.beta_max_deg'] = 20.
+    options['user_options.kite_standard.aero_validity.beta_min_deg'] = -20.
+    options['user_options.kite_standard.aero_validity.alpha_max_deg'] = 20.0
+    options['user_options.kite_standard.aero_validity.alpha_min_deg'] = -20.0
+
+    # variable bounds
+    options['model.system_bounds.x.l_t'] = [10.0, 700.0]  # [m]
+    options['model.system_bounds.x.dl_t'] = [-15.0, 20.0]  # [m/s]
+    options['model.system_bounds.x.ddl_t'] = [-2.4, 2.4]  # [m/s^2]
+    #options['model.system_bounds.x.q'] = [np.array([-ca.inf, -ca.inf, 100.0]), np.array([ca.inf, ca.inf, ca.inf])]
+    options['model.system_bounds.theta.t_f'] = [20., 70.]  # [s]
+    options['model.system_bounds.z.lambda'] = [0., ca.inf]  # [N/m]
+
+    # indicate desired environment
+    options['params.wind.z_ref'] = 100.0
+    options['params.wind.power_wind.exp_ref'] = 0.15
+    options['user_options.wind.model'] = 'power'
+    options['user_options.wind.u_ref'] = 6.
+
+    return options
+

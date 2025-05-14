@@ -5,7 +5,7 @@ MPC-based closed loop simulation example for a single 3DOF kite system.
 :author: Jochem De Schutter
 :edited: Rachel Leuthold, Maher Brahim
 """
-
+# %%
 # imports
 import awebox as awe
 import awebox.sim_kitepower_lei as sim
@@ -13,7 +13,9 @@ import casadi as ca
 import awebox.opts.kite_data.kitepower_lei_data as kitepower_lei_data
 import copy
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
+# import matplotlib
+# matplotlib.use("module://matplotlib_inline.backend_inline")
+# from matplotlib.collections import LineCollection
 import awebox as awe
 import awebox.opts.kite_data.ampyx_ap2_settings as ampyx_ap2_settings
 import numpy as np
@@ -24,14 +26,14 @@ from scipy.signal import savgol_filter
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
-from  kite_3D_plot import plot_xy, plot_xyz, animate_3d_flight
+from  kite_3D_plot import plot_xy, plot_xyz, animate_3d_flight, is_gaussian_noise
 from kalman_filter import  kalman_filter_for_tether, kalman_filter_derivation
 from awebox.opts.kite_data.kitepower_lei_data import data_dict as data_dict_func
 
 # Define path to measurements dataset
 current_path = os.path.dirname(os.path.abspath(__file__))
 data_path = os.path.abspath(os.path.join(current_path, "..", "..", "Data", "DataShots"))
-json_file = os.path.join(data_path,  "data_for_power_cycle.json")
+json_file = os.path.join(data_path,  "data_for_power_cycle_2.json")
 
 with open(json_file, "r") as f:
     data = json.load(f)
@@ -134,6 +136,24 @@ def noise_estimation(time, length, velocity, window_length=21, polyorder=3):
         'process_noise_acceleration': q_acceleration
     }
 
+def check_uniform_dt(t, rtol=1e-9, atol=0.0):
+    t = np.asarray(t, dtype=float)
+    if t.size < 2:
+        return True, np.nan
+    dt = np.diff(t)
+    uniform = np.allclose(dt, dt[0], rtol=rtol, atol=atol)
+    return bool(uniform), (dt[0] if uniform else dt)
+
+def common_dt_precision(t, max_decimals=12):
+    t = np.asarray(t, dtype=float)
+    if t.size < 2:
+        return None, np.nan
+    dt = np.diff(t)
+    ref = dt[0]
+    for d in range(max_decimals + 1):
+        if not np.all(np.round(dt, d) == np.round(ref, d)):
+            return d - 1, ref
+    return max_decimals, ref
 
 def run(plot_show_block=True, overwrite_options={}):
 
@@ -271,40 +291,13 @@ def run(plot_show_block=True, overwrite_options={}):
 
     return open_loop_sim
 
-    
-
-
+# %% 
+# Main
 if __name__ == "__main__":
     data_dict = data_dict_func()
     dl_t = np.array(aggregated_data['ground_tether_reelout_speed (m/s)'])
     l_t = np.array(aggregated_data['ground_tether_length (m)']) 
     results = noise_estimation(time, l_t, dl_t)
-    # print (results)
-
-    #fig_results, ax_results = plot_xy(time, [results['length_smooth'], results['velocity_smooth'], results['acceleration_smooth']], labels=['length_smooth', 'velocity_smooth', 'acceleration_smooth'], xlabel='time (s)', ylabel='l_t (m)', title='tether length')
-    # fig_lt, ax_lt = plot_xy(time, [l_t], labels=['l_t'], xlabel='time (s)', ylabel='l_t (m)', title='tether length')
-    # fig_dlt, ax_dlt = plot_xy(time, [dl_t], labels=['dl_t'], xlabel='time (s)', ylabel='dl_t (m/s)', title='rollout velocity')
-
-
-
-    # errors=[]
-    # window_lengths = []
-    # 
-    # for i in range(5, 101): 
-    #     try:
-    #         if i > len(l_t):  
-    #             continue
-    #         dl_t_num = savgol_derivative(time, l_t, window_length=i)
-    #         error = np.mean(np.abs(dl_t - dl_t_num))
-    #         errors.append(error)
-    #         window_lengths.append(i)
-    #     except Exception as e:
-    #         print(f"Fehler bei Fenstergröße {i}: {e}") 
-    # min_error = min(errors)
-    # window_length = window_lengths[errors.index(min_error)]
-    # #print('Beste Fenstergröße =', window_length)
-    # dl_t_num3 = savgol_derivative(time, l_t, window_length )
-    # e3= [np.abs(dl_t[i]-dl_t_num3[i]) for i in range(len(dl_t))]
     x, y, z = np.array(
         [rotate_enu(a, e, n, u) for a, e, n, u in zip(
             aggregated_data['ground_upwind_direction (deg)'],
@@ -320,8 +313,9 @@ if __name__ == "__main__":
     upwind_direction_mean = np.mean(upwind_direction_filtered)
     N = len(time)
     upwind_direction_filtered_mean = np.full(N, upwind_direction_mean)
-
-    #fig4, ax4 = plot_xy(time, [dl_t_num3, dl_t, e3], labels=['computed dl_t', ' measured dl_t', 'error'], xlabel='time', ylabel='dl_t (m/s)', title='with Savitzky-Golay interpolation')
+    
+    # %%  
+    # filtered flight path
     fig3, ax3 = plot_xy(time, [aggregated_data['ground_upwind_direction (deg)'], upwind_direction_filtered ], labels=['ground_upwind_direction', 'upwind_direction_filtered'], xlabel='time (s)', ylabel='ground_upwind_direction (deg)', title='ground upwind direction over time')
     fig3d_1, ax3d_1 = plot_xyz( aggregated_data['kite_pos_east (m)'], aggregated_data['kite_pos_north (m)'], aggregated_data['kite_height (m)'], xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values')
     fig3d_2, ax3d_2 = plot_xyz( x, y, z, xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values')
@@ -335,69 +329,93 @@ if __name__ == "__main__":
 
     fig3d_3, ax3d_3 = plot_xyz( x_f, y_f, z_f, xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values (filtered)')
 
+    plt.show()
     
-    q_squares = [
-    float(ca.mtimes(ca.DM([xi, yi, zi]).T, ca.DM([xi, yi, zi]))) for xi, yi, zi in zip(x, y, z)]
-    l_t_square = l_t**2
+    # %% 
+    # Difference between the tether length and the distance of the kite to the groundstation 
+    q_squares = [float(ca.mtimes(ca.DM([xi, yi, zi]).T, ca.DM([xi, yi, zi]))) for xi, yi, zi in zip(x, y, z)]
+    l_t_square = (l_t + data_dict['geometry']['h_bridle'] + data_dict['geometry']['h_kite'])**2
+    l_t_with_offset = l_t + data_dict['geometry']['h_bridle'] + data_dict['geometry']['h_kite'] 
     q_squares = np.array(q_squares)
+    kite_distance =  aggregated_data['kite_distance (m)']
+    kite_distance_kf, _ = kalman_filter_derivation(time, kite_distance)
+    #offset = np.mean(kite_distance) - np.mean(l_t_with_offset)
+    fig2d_kd, ax2d_kd = plot_xy(time, 
+                                [l_t_with_offset , kite_distance, np.sqrt(q_squares), kite_distance - l_t_with_offset], 
+                                labels=['l_t', 'kite distance to the GS measured', 'kite distance calculated from measurments', 'diff_measured'], 
+                                xlabel='time (s)', 
+                                ylabel='distance (m)', 
+                                title=' diff between tether length (with h_kite and h_bridle) and kite position')
 
+    fig2d_kd, ax2d_kd = plot_xy(np.array(l_t_with_offset)**2, 
+                                [np.array(kite_distance)**2], 
+                                labels=['l_t with offset^2'], 
+                                xlabel='', 
+                                ylabel='distance^2 (m)', 
+                                title='tether length and kite position ')
+    
+    # animate_3d_flight([x_f, y_f, z_f], [], force_labels=[])
+
+    plt.show()
+    
+    # diff = (np.sqrt(q_squares)  - (l_t + data_dict['geometry']['h_bridle'] + data_dict['geometry']['h_kite']))
+    # 
+    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    # 
+    # points = np.array([kite_distance, l_t_with_offset]).T.reshape(-1,1,2)
+    # segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    # norm = plt.Normalize(0, len(kite_distance)-1)
+    # lc = LineCollection(segments, cmap='viridis', norm=norm)
+    # lc.set_array(np.arange(len(kite_distance)))
+    # ax1.add_collection(lc)
+    # # ax1.set_xlim(min(q_squares), max(q_squares))
+    # # ax1.set_ylim(min(l_t_square), max(l_t_square))
+    # ax1.set_xlabel('q_norm')
+    # ax1.set_ylabel('l_t_with_offset')
+    # ax1.set_title('Visualization')
+    # ax1.grid(True)
+    # plt.colorbar(lc, ax=ax1)
+    # ax2.plot(time, kite_distance - l_t_with_offset)
+    # ax2.set_xlabel('time')
+    # ax2.set_ylabel('q- l_t')
+    # ax2.set_title('Difference')
+    # ax2.grid(True)
+    # 
+    # plt.tight_layout()
+
+    # q_squares_with_filter = [
+    # float(ca.mtimes(ca.DM([xi, yi, zi]).T, ca.DM([xi, yi, zi]))) for xi, yi, zi in zip(x_f, y_f, z_f)]
+    # q_squares_wf = np.array(q_squares_with_filter)
+    # 
+    # diff = (np.sqrt(q_squares_wf) - (l_t + data_dict['geometry']['h_bridle'] + data_dict['geometry']['h_kite']) )
+    # 
+    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    # 
+    # points = np.array([q_squares_wf, l_t_square]).T.reshape(-1,1,2)
+    # segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    # norm = plt.Normalize(0, len(q_squares_wf)-1)
+    # lc = LineCollection(segments, cmap='viridis', norm=norm)
+    # lc.set_array(np.arange(len(q_squares_wf)))
+    # ax1.add_collection(lc)
+    # ax1.set_xlim(min(q_squares_wf), max(q_squares_wf))
+    # ax1.set_ylim(min(l_t_square), max(l_t_square))
+    # ax1.set_xlabel('q_square')
+    # ax1.set_ylabel('l_t^2')
+    # ax1.set_title('Visualization (filtered measurments)')
+    # ax1.grid(True)
+    # plt.colorbar(lc, ax=ax1)
+    # ax2.plot(time, diff)
+    # ax2.set_xlabel('time')
+    # ax2.set_ylabel('q- l_t')
+    # ax2.set_title('Difference')
+    # ax2.grid(True)
+
+    # plt.tight_layout()
 
     
-    diff = (np.sqrt(q_squares)  - l_t - data_dict['geometry']['h_bridle'])
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-
-    points = np.array([q_squares, l_t_square]).T.reshape(-1,1,2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    norm = plt.Normalize(0, len(q_squares)-1)
-    lc = LineCollection(segments, cmap='viridis', norm=norm)
-    lc.set_array(np.arange(len(q_squares)))
-    ax1.add_collection(lc)
-    ax1.set_xlim(min(q_squares), max(q_squares))
-    ax1.set_ylim(min(l_t_square), max(l_t_square))
-    ax1.set_xlabel('q_square')
-    ax1.set_ylabel('l_t^2')
-    ax1.set_title('Visualization')
-    ax1.grid(True)
-    plt.colorbar(lc, ax=ax1)
-    ax2.plot(time, diff)
-    ax2.set_xlabel('time')
-    ax2.set_ylabel('q- l_t')
-    ax2.set_title('Difference')
-    ax2.grid(True)
-
-    plt.tight_layout()
-
-    q_squares_with_filter = [
-    float(ca.mtimes(ca.DM([xi, yi, zi]).T, ca.DM([xi, yi, zi]))) for xi, yi, zi in zip(x_f, y_f, z_f)]
-    q_squares_wf = np.array(q_squares_with_filter)
-
-    diff = (np.sqrt(q_squares_wf) - l_t )
-
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-
-    points = np.array([q_squares_wf, l_t_square]).T.reshape(-1,1,2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    norm = plt.Normalize(0, len(q_squares_wf)-1)
-    lc = LineCollection(segments, cmap='viridis', norm=norm)
-    lc.set_array(np.arange(len(q_squares_wf)))
-    ax1.add_collection(lc)
-    ax1.set_xlim(min(q_squares_wf), max(q_squares_wf))
-    ax1.set_ylim(min(l_t_square), max(l_t_square))
-    ax1.set_xlabel('q_square')
-    ax1.set_ylabel('l_t^2')
-    ax1.set_title('Visualization (filtered measurments)')
-    ax1.grid(True)
-    plt.colorbar(lc, ax=ax1)
-    ax2.plot(time, diff)
-    ax2.set_xlabel('time')
-    ax2.set_ylabel('q- l_t')
-    ax2.set_title('Difference')
-    ax2.grid(True)
-
-    plt.tight_layout()
-
-    # animate_3d_flight([x_f, y_f, z_f], [], force_labels=[])
+    # %%
+    # Kalman Filtering
 
     KF_results = kalman_filter_for_tether(time, l_t, dl_t, results)
     fig_lt, ax_lt = plot_xy(time, [KF_results['estimated_length'], l_t ], labels=['estimated l_t','measured l_t'], xlabel='time (s)', ylabel='l_t (m)', title='tether length')
@@ -417,9 +435,20 @@ if __name__ == "__main__":
     fig01, ax01 = plot_xy(time, [u_s, u_s_kf], labels=['u_s measured', 'u_s using Kalman Filter'], xlabel='time (s)', ylabel='u_s(%)', title='u_s  over time')
     fig02, ax02 = plot_xy(time, [du_d, du_d_kf], labels=['du_d using Savgol', 'du_d using Kalman Filter'], xlabel='time (s)', ylabel='velocity ', title='du_d  over time')
     fig03, ax03 = plot_xy(time, [u_d, u_d_kf], labels=['u_d measured', 'u_d using Kalman Filter'], xlabel='time (s)', ylabel='u_d(%)', title='u_d  over time')
-    #fig02, ax02 = plot_xy(time, [aggregated_data['ground_upwind_direction (deg)'], upwind_kf_filter], labels=['ground_upwind_direction  measured', 'ground_upwind_direction  using Kalman Filter'], xlabel='time (s)', ylabel='velocity (m/s)', title='du_s  over time')
-
-
+    fig02, ax02 = plot_xy(time, [aggregated_data['ground_upwind_direction (deg)'], upwind_kf_filter], labels=['ground_upwind_direction  measured', 'ground_upwind_direction  using Kalman Filter'], xlabel='time (s)', ylabel='velocity (m/s)', title='du_s  over time')
     plt.show()
-    open_loop_sim = run()
+    # %%
+    # calculate the dts in time 
+    dt = check_uniform_dt(time, rtol=1e-9, atol=1e-6,)
+    print ('Time intervals between the individual points in time: ', dt)
+    dec, ref = common_dt_precision(time)
+    print(f"dt is equal up to {dec} decimal places, value = {ref}\n")
 
+    # %%
+    # Check whether a Gaussian noise pattern exists for the given data 
+    is_gaussian_noise(dl_t)
+    is_gaussian_noise(upwind_direction_without_outliers)
+    # %%
+    # simulation run
+    # open_loop_sim = run()
+# %%

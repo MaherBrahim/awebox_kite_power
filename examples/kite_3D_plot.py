@@ -4,6 +4,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib.animation import FuncAnimation
 import matplotlib.lines as mlines  
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.signal import savgol_filter
 
 def plot_kite(positions, ex_array, ey_array, ez_array, kite_size):
     """
@@ -289,3 +290,57 @@ def plot_xyz(x, y, z, xlabel='X-Achse', ylabel='Y-Achse', zlabel='Z-Achse', titl
     ax.grid(True)
     return fig, ax
 
+
+def is_gaussian_noise(
+    data: np.ndarray,
+    window_length: int = 21,
+    polyorder: int = 5,
+    bins: int = 30):
+
+        """
+        Smooth data with a Savitzky-Golay filter, compute residual noise, estimate
+        μ, σ², σ, and plot (1) raw vs. smoothed signal, (2) noise histogram with a
+        fitted Gaussian PDF.
+
+        Returns (mu, var, sigma).
+        """
+        data = np.asarray(data, dtype=float)
+
+        if window_length % 2 == 0 or window_length < polyorder + 2:
+            raise ValueError("window_length must be odd and > polyorder + 1")
+        if window_length > data.size:
+            raise ValueError("window_length exceeds data length")
+
+        smooth = savgol_filter(data, window_length, polyorder)
+        residuals = data - smooth
+
+        mu = residuals.mean()
+        var = residuals.var(ddof=1)
+        sigma = np.sqrt(var)
+
+        # Plot 1: original vs. smoothed
+        plt.figure()
+        plt.plot(data,   label="Original",  lw=1)
+        plt.plot(smooth, label="Smoothed",  lw=2)
+        plt.title("Signal vs. Savitzky–Golay")
+        plt.xlabel("Index")
+        plt.ylabel("Value")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
+        # Plot 2: noise histogram + Gaussian PDF
+        plt.figure()
+        plt.hist(residuals, bins=bins, density=True, alpha=0.5, label="Residuals")
+        x = np.linspace(mu - 4 * sigma, mu + 4 * sigma, 800)
+        pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
+        plt.plot(x, pdf, lw=2, label=f"Gaussian μ={mu:.3f}, σ={sigma:.3f}")
+        plt.title("Noise Distribution vs. Gaussian")
+        plt.xlabel("Residual")
+        plt.ylabel("Density")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+        return mu, var, sigma

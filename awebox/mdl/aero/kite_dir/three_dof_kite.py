@@ -129,10 +129,6 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
          
         CL, CD = get_aerodynamic_coefficient(get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, dq, wind_velocity))
 
-
-        #CL = 1.
-        #CD = 0.2
-        #coeff[1]= 0.26
     
         f_lift = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * CL * (cas.cross(vec_u, kite_dcm[:, 1])/cas.norm_2(cas.cross(vec_u, kite_dcm[:, 1])))
         f_drag = 0.5 * rho_infty * cas.norm_2(vec_u) * parameters['theta0', 'geometry', 's_ref'] * CD  * (vec_u) * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_2(coeff[0]))
@@ -152,7 +148,7 @@ def get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, velocity, wind_velocity):
     #coeff[1]= 0.26
     alpha_d = ((coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0'])) * parameters['theta0', 'geometry', 'alpha_d_max']
     # alpha = cas.arccos(cas.mtimes(vec_u.T, kite_dcm[:, 0])/ cas.norm_2(vec_u)) - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
-    alpha =  np.arccos(cas.dot(-vec_u, kite_dcm[:, 0]) / cas.norm_2(vec_u))  - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
+    alpha =  np.arccos(cas.mtimes(-vec_u.T, kite_dcm[:, 0]) / cas.norm_2(vec_u))  - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
     
     return alpha
 

@@ -30,7 +30,7 @@ options['user_options.system_model.kite_dof'] = 3
 # indicate desired operation mode
 options['user_options.trajectory.type'] = 'power_cycle'
 options['user_options.trajectory.system_type'] = 'lift_mode'
-windings = 5
+windings = 4
 options['user_options.trajectory.lift_mode.windings'] = windings
 
 # indicate desired environment
@@ -170,7 +170,7 @@ quad_CL_1 = -0.00138 * alpha **2 + 0.06375 * alpha + 0.46429
 def sigmoid(alpha_sym, alpha_c, k):
     return 1.0 / (1.0 + cas.exp(-k*(alpha_sym - alpha_c)))
 # Sigmoid function for combining the two linear functions
-k1, k2, k3, k4 = 2, 2, 2, 1
+k1, k2, k3, k4 = 0.5, 0.5, 0.5, 1
 S1 = sigmoid(alpha,  0.0,  k1)     # Transition around alpha=0
 S2 = sigmoid(alpha, 12.0,  k2)     # Transition around alpha=12
 S3 = sigmoid(alpha, 40.0,  k3)     # Transition by alpha=40
@@ -183,8 +183,12 @@ CD_fitted = quad_neg_CD * (1 - S) + lin_pos_CD * S
 
 
 plt.figure()
-plt.scatter(alpha_sim, CL_measured, label='simulated C_L', alpha=0.6)
-plt.scatter(alpha_sim, CD_measured, label='simulated C_D', alpha=0.6)
+plt.scatter(alpha_sim, CL_measured, label='C_L-values used in the simulation', alpha=0.6)
+plt.scatter(alpha_sim, CD_measured, label='C_D-values used in the simulation', alpha=0.6)
+# print('alpha_sim:', alpha_sim)
+# print('CL_measured', CL_measured)
+# print('CD_measured', CD_measured)
+
 plt.plot(alpha, CL_fitted, label='Fitted C_L', linewidth=2)
 plt.plot(alpha, CD_fitted, label='Fitted C_D', linewidth=2)
 
@@ -229,13 +233,13 @@ plot_kitepower_similar_wing(panels, kite_positions, e_y, e_x, e_z)
 animate_3d_flight(kite_positions, [lift_force, drag_force, side_force], force_labels=["Lift Force", "Drag Force", "Side Force"])
 
 
-animate_3d_flight(kite_positions, [e_x, e_y, e_z], force_labels=["e_x", "e_y", "e_z"])
+# animate_3d_flight(kite_positions, [e_x, e_y, e_z], force_labels=["e_x", "e_y", "e_z"])
 
 wind = plot_dict['outputs']['aerodynamics']['u_infty1']
 apparent_wind = plot_dict['outputs']['aerodynamics']['vec_u1']
 kite_vel = plot_dict['x']['dq10']
 true_apparent_wind = plot_dict['outputs']['aerodynamics']['true_vec_u1']
-animate_3d_flight(kite_positions, [e_x, wind, kite_vel, apparent_wind, true_apparent_wind], force_labels=["e_x", "wind", "kite_vel", "apparent wind", "true_apparent_wind"])
+# animate_3d_flight(kite_positions, [e_x, wind, kite_vel, apparent_wind, true_apparent_wind], force_labels=["e_x", "wind", "kite_vel", "apparent wind", "true_apparent_wind"])
 
 plt.show()
 

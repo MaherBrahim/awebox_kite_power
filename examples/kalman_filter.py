@@ -60,10 +60,10 @@ def kalman_filter_for_tether(time, l_meas, dl_meas, noise_params):
                [0, 1, 0]])
 
     # Process noise covariance matrix
-    Q = ca.diag(ca.DM([1e-10, 1e-7, 0.0000001 * noise_params['process_noise_acceleration']]))
+    Q = ca.diag(ca.DM([1e-10, 1e-6, noise_params['process_noise_acceleration']]))
     
     # Measurement noise covariance matrix using provided noise parameters
-    R = ca.diag(ca.DM([noise_params['measurement_noise_length'],
+    R = ca.diag(ca.DM([noise_params['measurement_noise_length'], 
                        noise_params['measurement_noise_velocity']]))
 
     x_est = ca.DM.zeros((n, 3))

@@ -41,7 +41,7 @@ def data_dict():
 def geometry():
 
     geometry = {}
-    geometry['b_ref'] = 5 # fill in some meaningful value
+    geometry['b_ref'] = 6 # fill in some meaningful value
     geometry['s_ref'] = 46.86  # [m^2]
     geometry['c_ref'] = geometry['s_ref']  / geometry['b_ref']  # [m]
     
@@ -79,7 +79,7 @@ def geometry():
     geometry['u_d_max'] = 0.4247 
 
     # Steering-induced drag coefficient 
-    geometry['K_s_D'] = 0.001 # [-]
+    geometry['K_s_D'] = 0.01 # [-]
 
     # Steering offset c0 
     geometry['c0'] = -0.004 # [-]
@@ -92,6 +92,9 @@ def geometry():
 
     # Bridle Height
     geometry['h_bridle'] = 11.08 # [m]
+
+    # Kite Height
+    geometry['h_kite'] = 4.32 # [m]
 
     return geometry
 

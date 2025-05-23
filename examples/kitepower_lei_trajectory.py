@@ -239,7 +239,7 @@ wind = plot_dict['outputs']['aerodynamics']['u_infty1']
 apparent_wind = plot_dict['outputs']['aerodynamics']['vec_u1']
 kite_vel = plot_dict['x']['dq10']
 true_apparent_wind = plot_dict['outputs']['aerodynamics']['true_vec_u1']
-# animate_3d_flight(kite_positions, [e_x, wind, kite_vel, apparent_wind, true_apparent_wind], force_labels=["e_x", "wind", "kite_vel", "apparent wind", "true_apparent_wind"])
+animate_3d_flight(kite_positions, [e_x, wind, kite_vel, apparent_wind, true_apparent_wind], force_labels=["e_x", "wind", "kite_vel", "apparent wind", "true_apparent_wind"])
 
 plt.show()
 

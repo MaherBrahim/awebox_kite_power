@@ -3,16 +3,34 @@ import awebox.mdl.architecture as archi
 import awebox.opts.options as opts
 import awebox.opts.kite_data.ampyx_ap2_settings as ampyx_ap2_settings
 import awebox.opts.kite_data.kitepower_lei_data as kitepower_lei_data
+from  measurement_processing import rotate_enu, remove_outliers, interpolate_data, noise_estimation, get_weighted_cov
+from awebox.opts.kite_data.kitepower_lei_data import data_dict as data_dict_func
 import casadi as ca
 import numpy as np
+import json, os
 from typing import Optional
+
+# Load the kite geometry parameters dictionary
+data_dict = data_dict_func()
+
+# Define path to measurements dataset
+current_path = os.path.dirname(os.path.abspath(__file__))
+data_path = os.path.abspath(os.path.join(current_path, "..", "..", "Data", "DataShots"))
+json_file = os.path.join(data_path,  "one_loop_meas_2025_1.json")
+
+with open(json_file, "r") as f:
+    data = json.load(f)
 
 def setup_model():
     """
     Set up the model and options for the kitepower system.
     """
+    upwind_velocity_without_outliers = remove_outliers(data['ground_wind_velocity'], 50, 2)
+    upwind_velocity_filtered = interpolate_data(upwind_velocity_without_outliers)
+    upwind_velocity_mean = np.mean(upwind_velocity_filtered)
     # Load the options
     options_seed = {} 
+    options_seed['user_options.wind.u_ref'] = upwind_velocity_mean
     options_seed = ampyx_ap2_settings.set_kitepower_lei_settings(options_seed)
     options = opts.Options()
     options.fill_in_seed(options_seed)
@@ -38,7 +56,7 @@ def generate_implicit_dae_F(np, params_dict):
 
     # create OCP variables
     nx = mdl_vars['x'].shape[0]
-    nu = mdl_vars['u'].shape[0] - 3 # remove fictitious forces
+    nu = mdl_vars['u'].shape[0]  -3 # remove fictitious forces
     nz = mdl_vars['z'].shape[0]
 
     xdot = ca.SX.sym('xdot', nx)
@@ -57,7 +75,7 @@ def generate_implicit_dae_F(np, params_dict):
         if var == 'x':
             var_list.append(x)
         elif var == 'u':
-            var_list.append(ca.vertcat(0,0,0,u)) # set fictitious forces to zero
+            var_list.append(ca.vertcat(u,u)) # set fictitious forces to zero
         elif var == 'z':
             var_list.append(z)
         elif var == 'xdot':
@@ -87,11 +105,13 @@ def generate_implicit_dae_F(np, params_dict):
     counter = 0
     for k in range(theta0.shape[0]):
         CanIdx = theta0.getCanonicalIndex(k)
+        print(CanIdx)
         if len(CanIdx) == 2:
             try:
                 test = params_dict[CanIdx[0]][CanIdx[1]]
                 theta0_list.append(p[counter])
                 counter += 1
+                print('Symbolic parameter added!')
             except:
                 theta0_list.append(theta0.cat[k])
         elif len(CanIdx) == 3:
@@ -99,6 +119,8 @@ def generate_implicit_dae_F(np, params_dict):
                 test = params_dict[CanIdx[0]][CanIdx[1]][CanIdx[2]]
                 theta0_list.append(p[counter])
                 counter += 1
+                print('Symbolic parameter added!')
+
             except:
                 theta0_list.append(theta0.cat[k])
         elif len(CanIdx) == 4:
@@ -106,8 +128,12 @@ def generate_implicit_dae_F(np, params_dict):
                 test = params_dict[CanIdx[0]][CanIdx[1]][CanIdx[2]][CanIdx[3]]
                 theta0_list.append(p[counter])
                 counter += 1
+                print('Symbolic parameter added!')
+
             except:
                 theta0_list.append(theta0.cat[k]) 
+    if counter != np:
+        raise ValueError('Symbolic parameters failed')
     theta0_sym = theta0(ca.vertcat(*theta0_list))
 
     # create F_params
@@ -143,7 +169,7 @@ def get_bounds():
             'dl_t': ca.DM([ -5.0 ]),
         },
         'u': {
-            'du_s': ca.DM([ -.08 ]),
+            'du_s': ca.DM([ -.8 ]),
             'du_d': ca.DM([ -1. ]),
             'ddlt': ca.DM([ -2.0 ]),
         },
@@ -166,7 +192,7 @@ def get_bounds():
             'dl_t': ca.DM([ 5.0]),
         },
         'u': {
-            'du_s': ca.DM([ .08 ]),
+            'du_s': ca.DM([ .8 ]),
             'du_d': ca.DM([ 0.1 ]),
             'ddlt': ca.DM([ 2. ]),
         },
@@ -197,15 +223,15 @@ def get_scaled_bounds(model):
             'dl_t': ca.DM([ -30.0 / model.scaling['x'][9]]),
         },
         'u': {
-            'du_s': ca.DM([ -.08 / model.scaling['u'][0]]),
-            'du_d': ca.DM([ -0.1 / model.scaling['u'][1]]),
-            'ddlt': ca.DM([ -2.0 / model.scaling['u'][2]]),
+            'du_s': ca.DM([ -.08 / model.scaling['u'][3]]),
+            'du_d': ca.DM([ -0.1 / model.scaling['u'][4]]),
+            'ddlt': ca.DM([ -2.0 / model.scaling['u'][5]]),
         },
         'z': {
             'lambda': ca.DM([ 1 /model.scaling['z'][0]]),
         },  
         'p': {
-            'K_s,D': ca.DM([ 0.0 ]),
+            #'K_s_D': ca.DM([ 0.0 ]),
             'c_s' : ca.DM([0.0]),
         }
     }
@@ -221,16 +247,16 @@ def get_scaled_bounds(model):
             'dl_t': ca.DM([ 30.0 / model.scaling['x'][9]]),
         },
         'u': {
-            'du_s': ca.DM([ .08 / model.scaling['u'][0]]),
-            'du_d': ca.DM([ .1 / model.scaling['u'][1]]),
-            'ddlt': ca.DM([ 2.0 / model.scaling['u'][2]]),
+            'du_s': ca.DM([ .08 / model.scaling['u'][3]]),
+            'du_d': ca.DM([ .1 / model.scaling['u'][4]]),
+            'ddlt': ca.DM([ 2.0 / model.scaling['u'][5]]),
         },
         'z': {
             'lambda': ca.DM([ ca.inf /model.scaling['z'][0]]),
         },
         'p': {
-            'K_s,D': ca.DM([ 2.0 ]),
-            'c_s' : ca.DM([5.0]),
+            #'K_s,D': ca.DM([ .81 ]),
+            'c_s' : ca.DM([10.1]),
         }
     }
 
@@ -303,6 +329,8 @@ def flatten_group_bounds(lbs: dict, ubs: dict, group: str):
 
 if __name__ == '__main__':
 
+    model, options = setup_model()
+
     n_p = 0
     params_dict = {}
     params_dict['geometry'] = {}
@@ -321,7 +349,7 @@ if __name__ == '__main__':
     print(lb_z, ub_z)
     print(lb_p, ub_p)
 
-    lb_scaled, ub_scaled = get_scaled_bounds()
+    lb_scaled, ub_scaled = get_scaled_bounds(model)
     lb_x_scaled, ub_x_scaled = flatten_group_bounds(lb_scaled, ub_scaled, 'x')
     lb_u_scaled, ub_u_scaled = flatten_group_bounds(lb_scaled, ub_scaled, 'u')
     lb_z_scaled, ub_z_scaled = flatten_group_bounds(lb_scaled, ub_scaled, 'z')

@@ -109,7 +109,10 @@ def set_kitepower_lei_settings(options):
     options['params.wind.z_ref'] = 100.0
     options['params.wind.power_wind.exp_ref'] = 0.15
     options['user_options.wind.model'] = 'power'
-    options['user_options.wind.u_ref'] = 6.
+    #options['user_options.wind.u_ref'] = 6.
+    options['nlp.collocation.u_param'] = 'ploy'
+
+
 
     return options
 

@@ -97,25 +97,25 @@ def kalman_filter_derivation(time, y_meas, threshold=0.01):
     H = ca.DM([[1, 0]])
 
     # Use Savitzky-Golay filter to estimate smoothed signal
-    y_smooth = savgol_filter(y_meas, window_length=11, polyorder=2)
+    y_smooth = savgol_filter(y_meas, window_length=7, polyorder=2)
     meas_residuals = y_meas - y_smooth
-    R = ca.DM([[np.var(meas_residuals)]])
+    R = ca.DM([[0.001*np.var(meas_residuals)]])
 
 
     dy_with_savgol_filter = np.gradient(y_meas, time)
     dy_smooth = savgol_filter(dy_with_savgol_filter, window_length=11, polyorder=2)
     process_residuals = dy_with_savgol_filter - dy_smooth
 
-    Q = ca.diag(ca.DM([1e-9, 1e-2*np.var(process_residuals)]))
+    Q = ca.diag(ca.DM([1e-3, 1e-4*np.var(process_residuals)]))
 
-
-    x = ca.DM([y_meas[0], 0.0])
+    dy_start = (y_meas[3] - y_meas[0])/3*dt
+    x = ca.DM([y_meas[0], dy_start ])
     P = ca.DM.eye(2)
 
     estimated_y = np.zeros(n)
     estimated_dy = np.zeros(n)
     estimated_y[0] = y_meas[0]
-    estimated_dy[0] = 0.0
+    estimated_dy[0] = dy_start
 
     for k in range(1, n):
         dt = time[k] - time[k - 1]

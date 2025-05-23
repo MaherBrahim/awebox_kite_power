@@ -33,7 +33,7 @@ from awebox.opts.kite_data.kitepower_lei_data import data_dict as data_dict_func
 # Define path to measurements dataset
 current_path = os.path.dirname(os.path.abspath(__file__))
 data_path = os.path.abspath(os.path.join(current_path, "..", "..", "Data", "DataShots"))
-json_file = os.path.join(data_path,  "one_loop_meas_2025_1.json")
+json_file = os.path.join(data_path,  "one_loop_meas_2025_1_to_4.json")
 
 with open(json_file, "r") as f:
     data = json.load(f)
@@ -76,12 +76,14 @@ def discrete_derivative(time, position):
     return derivative
 
 def rotate_enu(wind_angle, east, north, up):
-    angle = np.deg2rad(wind_angle-270) 
-    R = np.array([[np.cos(angle), -np.sin(angle), 0],
-                  [np.sin(angle),  np.cos(angle), 0],
+    angle = np.deg2rad(wind_angle-90) 
+    print('wind_angle', wind_angle)
+    print(angle)
+    R = np.array([[np.cos(angle), np.sin(angle), 0],
+                  [-np.sin(angle),  np.cos(angle), 0],
                   [0,              0,             1]])
     enu = np.array([east, north, up])
-    rotated_enu = np.dot(R, enu)
+    rotated_enu = R @ enu
     return rotated_enu[0], rotated_enu[1], rotated_enu[2]
 
 def remove_outliers(data, window_size, threshold):
@@ -218,6 +220,8 @@ if __name__ == "__main__":
     noises = noise_estimation(time, l_t, dl_t)
     KF_results = kalman_filter_for_tether(time, l_t, dl_t, noises)
     ddl_t = KF_results['estimated_acceleration']
+
+
     
     u_meas = ca.DM([du_s_kf, du_d_kf, ddl_t]) 
     
@@ -248,6 +252,8 @@ if __name__ == "__main__":
 
     # measured kite psition and velocity oriented in the wind direction
     fig_q, ax_q = plot_xyz( x, y, z, xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values (filtered)')
+    fig_q, ax_q = plot_xyz( data['kite_pos_east'], data['kite_pos_north'], data['kite_height'], xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values ')
+
     fig_2d_q, ax_2d_q = plot_xy(time, [x, y, z], labels=['x', 'y', 'z'], xlabel='time (s)', ylabel='position ', title='kite position from measurment values (filtered)')
     fig_dq, ax_dq = plot_xyz( v_x, v_y, v_z, xlabel='X-vel', ylabel='Y-vel', zlabel='Z-vel', title='kite velocity from measurment values (filtered)')
     fig_2d_dq, ax_2d_dq = plot_xy(time, [v_x, v_y, v_z], labels=['v_x', 'v_y', 'v_z'], xlabel='time (s)', ylabel='velocity ', title='kite velocity from measurment values (filtered)')
@@ -275,6 +281,10 @@ if __name__ == "__main__":
                                 ylabel='distance (m)', 
                                 title=' diff between tether length (with h_kite, h_bridle and offset_value) and kite position')
 
+    plot_xy(data['kite_actual_steering'], [data['drag_coeff']], labels=['drag_coeff'], xlabel='u_s in %', ylabel='drag_coeff []', title=' drag_coeff over us')
+    plot_xy(data['kite_actual_steering'], [data['lift_coeff']], labels=['lift_coeff'], xlabel='u_s in %', ylabel='lift_coeff []', title=' lift_coeff over us')
+
+    plot_xy(time, [data['ese_kite_angle_of_attack_deg']], labels=['AOA'], xlabel='time in (s)', ylabel=' [AOA]', title=' ')
     # fig2d_kd, ax2d_kd = plot_xy(np.array(l_t_with_offset)**2, 
     #                             [np.array(kite_distance)**2], 
     #                             labels=['l_t with offset^2'], 

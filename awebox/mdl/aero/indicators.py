@@ -44,7 +44,7 @@ import awebox.mdl.aero.kite_dir.tools as tools
 
 
 def get_force_vector(options, variables, wind, architecture, parameters, kite, outputs):
-    kite_dcm = three_dof_kite.get_kite_dcm(options, variables, wind, kite, architecture)
+    kite_dcm = three_dof_kite.get_kite_dcm(options, variables, wind, kite, architecture, parameters)
 
     vec_u = tools.get_local_air_velocity_in_earth_frame(options, variables, wind, kite, kite_dcm, architecture,
                                                         parameters, outputs)

@@ -30,7 +30,7 @@ options['user_options.system_model.kite_dof'] = 3
 # indicate desired operation mode
 options['user_options.trajectory.type'] = 'power_cycle'
 options['user_options.trajectory.system_type'] = 'lift_mode'
-windings = 4
+windings = 1
 options['user_options.trajectory.lift_mode.windings'] = windings
 
 # indicate desired environment
@@ -57,7 +57,7 @@ options['nlp.phase_fix_reelout'] = 0.7
 
 options['model.model_bounds.acceleration.include']  = False
 options['model.model_bounds.aero_validity.include']  = False
-options['model.model_bounds.tether_stress.include']  = False
+options['model.model_bounds.tether_stress.include']  = True
 # (experimental) set to "True" to significantly (factor 5 to 10) decrease construction time
 # note: this may result in slightly slower solution timings
 options['nlp.compile_subfunctions'] = False
@@ -78,7 +78,7 @@ options['visualization.cosmetics.plot_ref'] = False
 # build and optimize the NLP (trial)
 trial = awe.Trial(options, 'Kitepower_LEI')
 trial.build()
-trial.optimize(final_homotopy_step = 'power')  # 'initial_guess', 'initial', 'fictitious', 'power', 'final'
+trial.optimize(final_homotopy_step = 'initial_guess')  # 'initial_guess', 'initial', 'fictitious', 'power', 'final'
 
 
 
@@ -101,7 +101,7 @@ kite_positions = plot_dict['x']['q10']
 e_x = plot_dict['outputs']['aerodynamics']['e_x1']
 e_y = plot_dict['outputs']['aerodynamics']['e_y1']
 e_z = plot_dict['outputs']['aerodynamics']['e_z1']
-
+import pdb; pdb.set_trace()
 # aerodynamic forces
 lift_force = outputs['aerodynamics']['F_lift_LEI_Kite1']
 drag_force = outputs['aerodynamics']['F_drag_LEI_Kite1']
@@ -230,7 +230,7 @@ plot_kitepower_similar_wing(panels, kite_positions, e_y, e_x, e_z)
 
 
 
-animate_3d_flight(kite_positions, [lift_force, drag_force, side_force], force_labels=["Lift Force", "Drag Force", "Side Force"])
+# animate_3d_flight(kite_positions, [lift_force, drag_force, side_force], force_labels=["Lift Force", "Drag Force", "Side Force"])
 
 
 # animate_3d_flight(kite_positions, [e_x, e_y, e_z], force_labels=["e_x", "e_y", "e_z"])

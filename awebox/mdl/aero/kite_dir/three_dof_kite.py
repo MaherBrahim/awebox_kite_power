@@ -46,7 +46,7 @@ from awebox.logger.logger import Logger as awelogger
 
 
 def get_force_vector(options, variables, atmos, wind, architecture, parameters, kite, outputs):
-    kite_dcm = get_kite_dcm(options, variables, wind, kite, architecture)
+    kite_dcm = get_kite_dcm(options, variables, wind, kite, architecture, parameters)
 
     vec_u = tools.get_local_air_velocity_in_earth_frame(options, variables, wind, kite, kite_dcm, architecture,
                                                         parameters, outputs)
@@ -97,7 +97,7 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
     # wind parameters
     rho_infty = atmos.get_density(q[2])
 
-    kite_dcm = get_kite_dcm(options, variables, wind, kite, architecture)
+    kite_dcm = get_kite_dcm(options, variables, wind, kite, architecture, parameters)
     
     if options['wing_type'] == 'rigid_wing':
         
@@ -126,18 +126,27 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
     if options['wing_type'] == 'LEI':
 
         # psi = variables['x']['psi' + str(kite) + str(parent)]
-         
+        Lhat = kite_dcm[:,2]
+
         CL, CD = get_aerodynamic_coefficient(get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, dq, wind_velocity))
 
-    
-        f_lift = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * CL * (cas.cross(vec_u, kite_dcm[:, 1])/cas.norm_2(cas.cross(vec_u, kite_dcm[:, 1])))
-        f_drag = 0.5 * rho_infty * cas.norm_2(vec_u) * parameters['theta0', 'geometry', 's_ref'] * CD  * (vec_u) * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_2(coeff[0]))
+        s_ref = parameters['theta0', 'geometry', 's_ref']
+
+        # lift and drag force
+        f_lift = CL * 1. / 2. * rho_infty * cas.mtimes(vec_u.T, vec_u) * s_ref * Lhat
+        f_drag = CD * 1. / 2. * rho_infty * vect_op.norm(vec_u) * s_ref * vec_u #* (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_2(coeff[0]))
+        f_side = np.zeros((3,))
+
+        f_aero = f_lift + f_drag
+
+        #f_lift = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * CL * (cas.cross(vec_u, kite_dcm[:, 1])/cas.norm_2(cas.cross(vec_u, kite_dcm[:, 1])))
+        #f_drag = 0.5 * rho_infty * cas.norm_2(vec_u) * parameters['theta0', 'geometry', 's_ref'] * CD  * (vec_u) * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_2(coeff[0]))
         # psi = 0.0
         # correction_term = (parameters['theta0', 'geometry', 'c2_s'] / cas.norm_2(vec_u)) * cas.sin(psi) * cas.cos(deg2rad(parameters['theta0', 'geometry', 'beta']))
-        correction_term = 0.0 
-        f_side = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * parameters['theta0', 'geometry', 'A_side/A'] * parameters['theta0', 'geometry', 'c_s'] * kite_dcm[:, 1] * (coeff[0] + correction_term) 
+        #correction_term = 0.0 
+        #f_side = 0.5 * rho_infty * cas.mtimes(vec_u.T, vec_u) * parameters['theta0', 'geometry', 's_ref'] * parameters['theta0', 'geometry', 'A_side/A'] * parameters['theta0', 'geometry', 'c_s'] * kite_dcm[:, 1] * (coeff[0] + correction_term) 
 
-        f_aero =  f_lift + f_drag + f_side
+        #f_aero =  f_lift + f_drag + f_side
         if "forces" in args:
             return f_lift, f_drag, f_side
         else:
@@ -146,10 +155,10 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
 
 def get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, velocity, wind_velocity):
     #coeff[1]= 0.26
-    alpha_d = ((coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0'])) * parameters['theta0', 'geometry', 'alpha_d_max']
+    # alpha_d = ((coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0'])) * parameters['theta0', 'geometry', 'alpha_d_max']
     # alpha = cas.arccos(cas.mtimes(vec_u.T, kite_dcm[:, 0])/ cas.norm_2(vec_u)) - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
-    alpha =  np.arccos(cas.mtimes(-vec_u.T, kite_dcm[:, 0]) / cas.norm_2(vec_u))  - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
-    
+    # alpha =  np.arccos(cas.mtimes(vec_u.T, kite_dcm[:, 0]) / cas.norm_2(vec_u)) # - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
+    alpha = cas.DM(np.deg2rad(15))
     return alpha
 
 def deg2rad(angle_in_deg):
@@ -253,7 +262,7 @@ def get_planar_dcm(vec_u_eff, variables, kite, architecture):
     return planar_dcm
 
 
-def get_kite_dcm(options, variables, wind, kite, architecture):
+def get_kite_dcm(options, variables, wind, kite, architecture, parameters):
 
     parent = architecture.parent_map[kite]
 
@@ -278,9 +287,25 @@ def get_kite_dcm(options, variables, wind, kite, architecture):
 
     elif options['wing_type'] == 'LEI':
 
-        q = variables['x']['q' + str(kite) + str(parent)]
-        ehat1, ehat2, ehat3 =  get_kite_reference_frame_1p_model(q, vec_u_eff)
+        # roll angle
+        coeff = variables['x']['coeff' + str(kite) + str(parent)]
+        c_s = parameters['theta0', 'geometry', 'c_s'] 
+        psi = c_s * coeff[0] # u_s
+
+        planar_dcm = get_planar_dcm(vec_u_eff, variables, kite, architecture)
+        uhat = planar_dcm[:, 0]
+        vhat = planar_dcm[:, 1]
+        what = planar_dcm[:, 2]
+
+        ehat1 = uhat
+        ehat2 = cas.cos(psi) * vhat + cas.sin(psi) * what
+        ehat3 = cas.cos(psi) * what - cas.sin(psi) * vhat
+
         kite_dcm = cas.horzcat(ehat1, ehat2, ehat3)
+
+        # q = variables['x']['q' + str(kite) + str(parent)]
+        # ehat1, ehat2, ehat3 =  get_kite_reference_frame_1p_model(q, vec_u_eff)
+        # kite_dcm = cas.horzcat(ehat1, ehat2, ehat3)
 
     return kite_dcm
 
@@ -288,7 +313,7 @@ def get_kite_dcm(options, variables, wind, kite, architecture):
 def get_wingtip_position(kite, options, wind, architecture, variables_si, parameters, tip):
     parent = architecture.parent_map[kite]
     q_kite = variables_si['x', 'q' + str(kite) + str(parent)]
-    dcm_kite = get_kite_dcm(options, variables_si, wind, kite, architecture)
+    dcm_kite = get_kite_dcm(options, variables_si, wind, kite, architecture, parameters)
     wingtip_position = tools.construct_wingtip_position(q_kite, dcm_kite, parameters, tip)
 
     return wingtip_position

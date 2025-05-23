@@ -70,7 +70,7 @@ def get_framed_forces_and_moments(options, variables_si, atmos, wind, architectu
     q_eff = 0.5 * rho * cas.mtimes(vec_u_eff.T, vec_u_eff)
 
     if int(options['kite_dof']) == 3:
-        kite_dcm = three_dof_kite.get_kite_dcm(options, variables_si, wind, kite, architecture)
+        kite_dcm = three_dof_kite.get_kite_dcm(options, variables_si, wind, kite, architecture, parameters)
     elif int(options['kite_dof']) == 6:
         kite_dcm = six_dof_kite.get_kite_dcm(kite, variables_si, architecture)
     else:

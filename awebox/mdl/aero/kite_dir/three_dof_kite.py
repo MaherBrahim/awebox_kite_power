@@ -128,13 +128,13 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
         # psi = variables['x']['psi' + str(kite) + str(parent)]
         Lhat = kite_dcm[:,2]
 
-        CL, CD = get_aerodynamic_coefficient(get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, dq, wind_velocity))
+        CL, CD = get_aerodynamic_coefficient(get_alpha_LEI(vec_u, variables, parameters, coeff, architecture, kite))
 
         s_ref = parameters['theta0', 'geometry', 's_ref']
 
         # lift and drag force
         f_lift = CL * 1. / 2. * rho_infty * cas.mtimes(vec_u.T, vec_u) * s_ref * Lhat
-        f_drag = CD * 1. / 2. * rho_infty * vect_op.norm(vec_u) * s_ref * vec_u #* (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_2(coeff[0]))
+        f_drag = CD * 1. / 2. * rho_infty * vect_op.norm(vec_u) * s_ref * vec_u * (1 + parameters['theta0', 'geometry', 'K_s_D'] * cas.norm_2(coeff[0]))
         f_side = np.zeros((3,))
 
         f_aero = f_lift + f_drag
@@ -153,12 +153,16 @@ def get_force_from_u_sym_in_earth_frame(vec_u, options, variables, kite, atmos, 
             return f_aero
     
 
-def get_alpha_LEI(vec_u, kite_dcm, coeff, parameters, velocity, wind_velocity):
+def get_alpha_LEI(vec_u, variables, parameters, coeff, architecture, kite):
     #coeff[1]= 0.26
-    # alpha_d = ((coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0'])) * parameters['theta0', 'geometry', 'alpha_d_max']
+    alpha_d = ((coeff[1] - parameters['theta0', 'geometry', 'u_d_0']) / (parameters['theta0', 'geometry', 'u_d_max'] - parameters['theta0', 'geometry', 'u_d_0'])) * parameters['theta0', 'geometry', 'alpha_d_max']
     # alpha = cas.arccos(cas.mtimes(vec_u.T, kite_dcm[:, 0])/ cas.norm_2(vec_u)) - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
     # alpha =  np.arccos(cas.mtimes(vec_u.T, kite_dcm[:, 0]) / cas.norm_2(vec_u)) # - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
-    alpha = cas.DM(np.deg2rad(15))
+    vec_t = tether_vector(variables, architecture, kite) # should be roughly "up-wards", ie, act like vec_w
+    vec_v = vect_op.cross(vec_t, vec_u)
+    e_x = vect_op.smooth_normalize(vect_op.cross(vec_v, vec_t))
+    alpha =  np.arccos(cas.mtimes(vec_u.T, e_x) / cas.norm_2(vec_u)) - deg2rad(alpha_d) + deg2rad(parameters['theta0', 'geometry', 'alpha_0'])
+    # alpha = cas.DM(np.deg2rad(15))
     return alpha
 
 def deg2rad(angle_in_deg):

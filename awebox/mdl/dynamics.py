@@ -247,6 +247,14 @@ def get_dictionary_of_derivatives(model_options, system_variables, parameters, a
         power_derivative_sq = outputs['performance']['power_derivative']**2
         derivative_dict['power_derivative_sq'] = (power_derivative_sq, power_derivative_sq_scaling)
 
+    if model_options['wing_type'] == 'LEI':
+        q = system_variables['scaled']['x','q10']
+        dq = system_variables['scaled']['x','dq10']
+        ddq = system_variables['scaled']['xdot','ddq10']
+        yaw_rate_scaling = 1.
+        yaw_rate = cas.mtimes(ddq.T, vect_op.normed_cross(dq, q))
+        derivative_dict['yaw_rate_reg'] = (0.5 * yaw_rate **2, yaw_rate_scaling)
+
     induction_derivative_dict = induction.get_dictionary_of_derivatives(model_options, system_variables, parameters, atmos, wind, outputs, architecture)
     for local_key, local_val in induction_derivative_dict.items():
         if not local_key in derivative_dict.keys():

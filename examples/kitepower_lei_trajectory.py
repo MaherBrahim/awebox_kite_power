@@ -40,21 +40,21 @@ options['user_options.wind.model'] = 'power'
 options['user_options.wind.u_ref'] = 6.
 
 # coefficient boundaries
-options['model.system_bounds.x.coeff'] =  [np.array([-1., 0.]), np.array([1., 1.])]
+options['model.system_bounds.x.coeff'] =  [np.array([-.6, 0.]), np.array([.6, 1.])]
 options['model.system_bounds.u.dcoeff'] =  [np.array([-.08, -1]), np.array([.08, 1])]
 
 # indicate numerical nlp details
 # here: nlp discretization, with a zero-order-hold control parametrization, and
 # a simple phase-fixing routine. also, specify a linear solver to perform the Newton-steps
 # within ipopt.
-options['nlp.n_k'] = int(40/3 * windings)
+options['nlp.n_k'] = 40 # int(40/3 * windings)
 options['nlp.collocation.u_param'] = 'zoh'
 options['user_options.trajectory.lift_mode.phase_fix'] = 'single_reelout' # 'simple' # 'single_reelout'
 options['solver.linear_solver'] = 'mumps'  # if HSL is installed, otherwise 'mumps'
 options['model.system_bounds.x.ddl_t'] = [-2.0, 2.0]
 options['model.system_bounds.theta.t_f'] = [0.0, windings*30.0]
 options['nlp.phase_fix_reelout'] = 0.7 
-
+options['solver.cost.beta.0'] = 1e-1
 options['model.model_bounds.acceleration.include']  = False
 options['model.model_bounds.aero_validity.include']  = False
 options['model.model_bounds.tether_stress.include']  = True
@@ -68,7 +68,7 @@ options['solver.initialization.shape'] = 'lemniscate'
 options['solver.initialization.lemniscate.az_width'] = 20*np.pi/180.
 options['solver.initialization.lemniscate.el_width'] = 8*np.pi/180.
 options['solver.initialization.inclination_deg'] = 30.
-options['solver.initialization.groundspeed'] = 20.
+options['solver.initialization.groundspeed'] = 40.
 options['solver.initialization.theta.diam_t'] = 5e-3
 options['solver.initialization.l_t'] = 300.0
 options['solver.max_iter_hippo'] = 1000
@@ -78,7 +78,7 @@ options['visualization.cosmetics.plot_ref'] = False
 # build and optimize the NLP (trial)
 trial = awe.Trial(options, 'Kitepower_LEI')
 trial.build()
-trial.optimize(final_homotopy_step = 'initial_guess')  # 'initial_guess', 'initial', 'fictitious', 'power', 'final'
+trial.optimize(final_homotopy_step = 'final')  # 'initial_guess', 'initial', 'fictitious', 'power', 'final'
 
 
 

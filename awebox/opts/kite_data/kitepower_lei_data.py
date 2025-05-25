@@ -55,7 +55,7 @@ def geometry():
     geometry['r_tether'] = np.zeros((3,1))
 
     # steering coefficient        #??
-    geometry['c_s'] = 0.6975 # 2.59 # [-]
+    geometry['c_s'] = 0.2 #0.6975 # 2.59 # [-]
 
     # correction factor
     geometry['c2_s'] = 0.93 # [-]

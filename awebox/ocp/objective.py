@@ -398,6 +398,9 @@ def find_beta_cost(nlp_options, model, Integral_outputs, P):
     if nlp_options['cost']['beta'] and model.kite_dof == 6:
         beta_cost = Integral_outputs['int_out', -1, 'beta_cost']
         beta_cost = P['cost', 'beta'] * beta_cost / nlp_options['cost']['normalization']['beta']
+    elif model.options['wing_type'] == 'LEI':
+        yaw_rate_reg = Integral_outputs['int_out', -1, 'yaw_rate_reg']
+        beta_cost = P['cost', 'beta'] * yaw_rate_reg / nlp_options['cost']['normalization']['beta']
     else:
         beta_cost = 0
 

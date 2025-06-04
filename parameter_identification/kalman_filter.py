@@ -60,7 +60,7 @@ def kalman_filter_for_tether(time, l_meas, dl_meas, noise_params):
                [0, 1, 0]])
 
     # Process noise covariance matrix
-    Q = ca.diag(ca.DM([1e-10, 1e-6, 0.1 * noise_params['process_noise_acceleration']]))
+    Q = ca.diag(ca.DM([1e-10, 1e-10, 1e1]))
    
     
     # Measurement noise covariance matrix using provided noise parameters
@@ -99,18 +99,18 @@ def kalman_filter_derivation(time, y_meas, threshold=0.01):
     # Use Savitzky-Golay filter to estimate smoothed signal
     y_smooth = savgol_filter(y_meas, window_length=7, polyorder=2)
     meas_residuals = y_meas - y_smooth
-    R = ca.DM([[0.001*np.var(meas_residuals)]])
+    R = ca.DM([[0.0001*np.var(meas_residuals)]])
 
 
     dy_with_savgol_filter = np.gradient(y_meas, time)
     dy_smooth = savgol_filter(dy_with_savgol_filter, window_length=11, polyorder=2)
     process_residuals = dy_with_savgol_filter - dy_smooth
 
-    Q = ca.diag(ca.DM([1e-3, 1e-4*np.var(process_residuals)]))
+    Q = ca.diag(ca.DM([1e-10, 1e-1]))
 
     dy_start = (y_meas[3] - y_meas[0])/3*dt
     x = ca.DM([y_meas[0], dy_start ])
-    P = ca.DM.eye(2)
+    P = ca.DM.eye(2)* 1e-4
 
     estimated_y = np.zeros(n)
     estimated_dy = np.zeros(n)
@@ -138,3 +138,53 @@ def kalman_filter_derivation(time, y_meas, threshold=0.01):
         estimated_dy[k] = float(x[1])
 
     return estimated_y, estimated_dy
+
+def forward_simulate(time, signal, order, initial_length, initial_velocity=0.0):
+    """
+    Propagate length (and velocity) using either velocity or acceleration.
+
+    Parameters
+    ----------
+    time : measurement time [s].
+    signal : If order=2: acceleration [m/s²]; if order=1: velocity [m/s].
+    order : 1 to integrate velocity to length, 2 to integrate acceleration to velocity and length.
+    initial_length : Tether length at time[0] [m].
+    initial_velocity : Reelout velocity at time[0] [m/s] (only used if order=2).
+
+    Returns
+    -------
+    If order=2:
+        length_sim : Simulated tether length [m].
+        velocity_sim : Simulated reelout velocity [m/s].
+    If order=1:
+        length_sim : Simulated tether length [m].
+    """
+    t = np.asarray(time, dtype=float)
+    s = np.asarray(signal, dtype=float)
+    N = t.size
+
+    length_sim = np.zeros(N)
+    length_sim[0] = initial_length
+
+    if order == 2:
+        velocity_sim = np.zeros(N)
+        velocity_sim[0] = initial_velocity
+
+        for k in range(1, N):
+            dt = t[k] - t[k-1]
+            a_prev = s[k-1]
+            length_sim[k]   = length_sim[k-1]   + velocity_sim[k-1]*dt + 0.5*a_prev*dt**2
+            velocity_sim[k] = velocity_sim[k-1] + a_prev*dt
+
+        return length_sim, velocity_sim
+
+    elif order == 1:
+        for k in range(1, N):
+            dt = t[k] - t[k-1]
+            v_prev = s[k-1]
+            length_sim[k] = length_sim[k-1] + v_prev*dt
+
+        return length_sim
+
+    else:
+        raise ValueError("order must be 1 or 2")

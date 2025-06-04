@@ -170,12 +170,18 @@ def generate_optimal_model(trial, param_options = None, external_forces = False)
     #         beta_sq = trial.model.outputs(trial.model.outputs_fun(var, trial.model.parameters))['aerodynamics', 'beta{}'.format(kite)]**2
     #         beta_reg += trial.optimization.p_fix_num['cost', 'beta']*beta_sq / trial.options['nlp']['cost']['normalization']['beta']
     if not 'e' in trial.model.variables_dict['x'].keys():
-        power = trial.model.integral_outputs_fun(var, trial.model.parameters)
+        if trial.model.options['wing_type'] == 'LEI':
+            int_out = trial.model.integral_outputs_fun(var, trial.model.parameters)
+            power = int_out[0]
+            yaw_rate = int_out[1]
+            beta_reg = yaw_rate / trial.options['nlp']['cost']['normalization']['beta']
+        else:
+            power = trial.model.integral_outputs_fun(var, trial.model.parameters)
     else:
         outputs_eval = trial.model.outputs(trial.model.outputs_fun(var, trial.model.parameters))
         power = outputs_eval['performance','p_current'] / trial.model.scaling['x']['e']
     cost_weighting = discr.setup_nlp_cost()(trial.optimization.p_fix_num['cost'])
-    stage_cost = - cost_weighting['power']*power / t_f.full()[0][0] + u_reg + xdot_reg  + beta_reg
+    stage_cost = - cost_weighting['power']*power / t_f.full()[0][0] + u_reg + xdot_reg  + cost_weighting['beta'] * beta_reg
     quadrature = cas.Function('quad', [var, trial.model.parameters], [stage_cost])
 
     # create dae object based on numerical parameters

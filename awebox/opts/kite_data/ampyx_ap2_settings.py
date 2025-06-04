@@ -92,7 +92,7 @@ def set_kitepower_lei_settings(options):
     options['model.model_bounds.airspeed.include'] = True
     # options['params.model_bounds.airspeed_limits'] = np.array([10, 32.0])
     options['model.model_bounds.aero_validity.include'] = True
-    options['user_options.kite_standard.aero_validity.beta_max_deg'] = 20.
+    options['user_options.kite_standard.aero_validity.beta_max_deg'] = 35.
     options['user_options.kite_standard.aero_validity.beta_min_deg'] = -20.
     options['user_options.kite_standard.aero_validity.alpha_max_deg'] = 20.0
     options['user_options.kite_standard.aero_validity.alpha_min_deg'] = -20.0
@@ -106,11 +106,11 @@ def set_kitepower_lei_settings(options):
     options['model.system_bounds.z.lambda'] = [0., ca.inf]  # [N/m]
 
     # indicate desired environment
-    options['params.wind.z_ref'] = 100.0
+    options['params.wind.z_ref'] = 5.0
     options['params.wind.power_wind.exp_ref'] = 0.15
-    options['user_options.wind.model'] = 'power'
+    options['user_options.wind.model'] = 'log_wind'
     #options['user_options.wind.u_ref'] = 6.
-    options['nlp.collocation.u_param'] = 'ploy'
+    #options['nlp.collocation.u_param'] = 'ploy'
 
 
 

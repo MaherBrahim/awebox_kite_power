@@ -1,25 +1,21 @@
 import casadi as ca, pathlib
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import awebox as awe
-from awebox.mdl.architecture import Architecture
-import awebox.tools.struct_operations as struct_op
-import awebox.opts.kite_data.kitepower_lei_data as kite_data
 from wrapper_for_sysid import generate_implicit_dae_F, get_bounds, flatten_group_bounds, get_scaled_bounds, get_scaled_vars, get_reverse_rescaled_vars
 from rk_utils import generate_butcher_tableau_integral
 from scipy.signal import savgol_filter
 from plotting import plot_xy, plot_xyz, plot_xy_mixed,plot_3d_mixed,   animate_3d_flight, is_gaussian_noise
 from kalman_filter import  kalman_filter_for_tether, kalman_filter_derivation
-from  measurement_processing import rotate_enu, remove_outliers, interpolate_data, noise_estimation, get_weighted_cov
+from  measurement_processing import rotate_enu, remove_outliers, interpolate_data, noise_estimation, get_weighted_cov, savgol_derivative
 from awebox.opts.kite_data.kitepower_lei_data import data_dict as data_dict_func
-import awebox.mdl.model as mdl
-import awebox.mdl.architecture as archi
-import awebox.opts.options as opts
-import awebox.opts.kite_data.ampyx_ap2_settings as ampyx_ap2_settings
 import os, sys, pathlib, ctypes, json
 from settings import default_options
-
+from wrapper_for_sysid import setup_model as base_setup_model
+import os, sys, pathlib, ctypes
+import settings
+from settings import default_options
+from wrapper_for_sysid import setup_model as base_setup_model
 
 
 
@@ -27,10 +23,10 @@ class KiteCollocationRunner:
     """
     Encapsulates model setup, data preprocessing, collocation problem setup and solution, and plotting.
     """
-    def __init__(self, json_path, num_stages=1, num_finite_elements=1):
+    def __init__(self, num_stages=1, num_finite_elements=1):
         # Paths and data
-        self.json_path = pathlib.Path(json_path)
         self.data_dict   = data_dict_func()
+        self.measurement_data = settings.load_measurement_data(settings.MEAS_FILE)
         # Collocation settings
         self.num_stages = num_stages
         self.num_finite_elements = num_finite_elements
@@ -58,7 +54,9 @@ class KiteCollocationRunner:
 
         # Initialization steps
         self._load_dll()
-        self._setup_model()
+
+        # setup the model and options
+        self.model, self.opts = base_setup_model(self.measurement_data)
 
         # load collocation options
         opts = default_options()
@@ -75,17 +73,17 @@ class KiteCollocationRunner:
         if sys.version_info >= (3, 8):
             os.add_dll_directory(str(dll_dir))
         ctypes.CDLL(str(dll_dir / "libhsl.dll"))
-        print("libhsl.dll erfolgreich geladen")
+        print("libhsl.dll loaded successfully!")
 
     def tether_constraints(self, x_scaled):
 
-        x_pysical = get_reverse_rescaled_vars(self.model, x=x_scaled)
+        x_physical = get_reverse_rescaled_vars(self.model, x=x_scaled)
         # pick the tether lenghth and reelout speed 
-        l_t = x_pysical[8]
-        dl_t = x_pysical[9]
+        l_t = x_physical[8]
+        dl_t = x_physical[9]
         # pick the kite position und velocity
-        q = x_pysical[0:3]
-        dq = x_pysical[3:6]
+        q = x_physical[0:3]
+        dq = x_physical[3:6]
     
         # define the constraints:
         c = 0.5 * (q.T @ q - l_t**2)
@@ -94,36 +92,39 @@ class KiteCollocationRunner:
         return ca.vertcat(c, c_dot)
 
 
-    def _setup_model(self):
-        # Wind reference
-        # wind_clean = remove_outliers(
-        #     self.dict_data['ground_wind_velocity'], 50, 2)
-        # wind_interp = interpolate_data(wind_clean)
-        upwind_velocity_mean = 6.0#float(np.mean(wind_interp))
-
-        options_seed = {} 
-        options_seed['user_options.wind.u_ref'] = upwind_velocity_mean
-        options_seed = ampyx_ap2_settings.set_kitepower_lei_settings(options_seed)
-        options = opts.Options()
-        options.fill_in_seed(options_seed)
-
-       
-        model = mdl.Model()
-        arch = archi.Architecture(
-            options['user_options']['system_model']['architecture']
-        )
-        options.build(arch)
-        model.build(options['model'], arch)
-
-        self.model = model
-        self.opts = options
+    # def _setup_model(self):
+    #     with open(self.json_path, 'r') as f:
+    #         measurement_data = json.load(f)
+    #     wind_clean = remove_outliers(measurement_data['ground_wind_velocity'], 50, 2)
+    #     wind_interp = interpolate_data(wind_clean)
+    #     
+    #     print('Loading and preprocessing measurement data...')
+    #     
+    #     options_seed = {} 
+    #     options_seed['user_options.wind.u_ref'] = np.mean(wind_interp)
+    #     options_seed = ampyx_ap2_settings.set_kitepower_lei_settings(options_seed)
+    #     options = opts.Options()
+    #     options.fill_in_seed(options_seed)
+# 
+    #    
+    #     model = mdl.Model()
+    #     arch = archi.Architecture(
+    #         options['user_options']['system_model']['architecture']
+    #     )
+    #     options.build(arch)
+    #     model.build(options['model'], arch)
+# 
+    #     self.model = model
+    #     self.opts = options
 
     def load_and_preprocess(self):
-        with open(self.json_path, 'r') as f:
-            measurement_data = json.load(f)
+
+        measurement_data = self.measurement_data
+        print('Loading and preprocessing measurement data...')
+
         # Time vector
         t = np.array(measurement_data['time']) - measurement_data['time'][0]
-        # Direction
+
         # states
         upwind_direction_without_outliers = remove_outliers(measurement_data['ground_upwind_direction'], 50, 100)
         upwind_direction_filtered = interpolate_data(upwind_direction_without_outliers)
@@ -131,22 +132,27 @@ class KiteCollocationRunner:
         upwind_direction_mean_vec = np.full(len(t), upwind_direction_mean)
         upwind_velocity_without_outliers = remove_outliers(measurement_data['ground_wind_velocity'], 50, 2)
         upwind_velocity_filtered = interpolate_data(upwind_velocity_without_outliers)
+        #print('Wind velocity mean: ', np.mean(measurement_data['ground_wind_velocity']))
         # Positions & velocities
         pos_x, pos_y, pos_z = np.array(
             [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-                upwind_direction_mean_vec,
+                measurement_data['online_upwind_direction'],
                 measurement_data['kite_pos_east'],
                 measurement_data['kite_pos_north'],
                 measurement_data['kite_height']
             )]).T
 
-        vel_x, vel_y, vel_z = np.array(
-            [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-                upwind_direction_mean_vec,
-                measurement_data['kite_est_vx'],
-                measurement_data['kite_est_vy'],
-                measurement_data['kite_est_vz']
-            )]).T
+        # vel_x, vel_y, vel_z = np.array(
+        #     [rotate_enu(a, e, n, u) for a, e, n, u in zip(
+        #         measurement_data['online_upwind_direction'],
+        #         measurement_data['kite_est_vx'],
+        #         measurement_data['kite_est_vy'],
+        #         measurement_data['kite_est_vz']
+        #     )]).T
+
+        vel_x = measurement_data['kite_est_vx']
+        vel_y = measurement_data['kite_est_vy']
+        vel_z = measurement_data['kite_est_vz']
         
         # Controls
         steering = np.array(measurement_data['kite_actual_steering'])/100 
@@ -161,6 +167,7 @@ class KiteCollocationRunner:
         )
         kf_len, kf_vel = kalman_filter_derivation(t, tether_length)
         offset = float(np.mean(measurement_data['kite_distance']) - np.mean(kf_len))
+        print('offset tether length: ', offset)
         tether_length += offset
         reel_vel = np.array(measurement_data['ground_tether_reelout_speed'])
         # Measurement vectors
@@ -185,14 +192,14 @@ class KiteCollocationRunner:
         reel_acc = KF_results['estimated_acceleration']
 
         # using mesurement claculated controls
-        u_meas = ca.DM([kf_steering_deriv, kf_depower_deriv, reel_acc])
+        u_meas = ca.DM([kf_steering_deriv/100, kf_depower_deriv/100, reel_acc])
 
         # Scaling
         y_scaled = ca.DM.zeros(y_meas.shape)
         u_scaled = ca.DM.zeros(u_meas.shape)
-        for i in range(y_meas.shape[0]):
+        for i in range(y_meas.shape[1]):
             y_scaled[:, i] = get_scaled_vars(self.model, x=y_meas[:,i])
-        for i in range(u_meas.shape[0]):
+        for i in range(u_meas.shape[1]):
             u_scaled[:, i] = get_scaled_vars(self.model, u=u_meas[:,i])
         # Initial conditions
         state0 = y_meas[:,0]
@@ -201,7 +208,7 @@ class KiteCollocationRunner:
         # Weights & theta
         W_y, _ = get_weighted_cov(y_meas, window_length=21, polyorder=3)
         W_th = np.diag([1e-3])
-        theta0 = ca.DM([1.0])
+        theta0 = ca.DM([0.0])
         # Store
         self.t = t
         self.y_s = y_scaled
@@ -241,11 +248,11 @@ class KiteCollocationRunner:
         n_param = 0
         params_dict = {}
         params_dict['geometry'] = {}
-        # params_dict['geometry']['K_s_D'] = [1]
-        # n_param += 1
+        #params_dict['geometry']['K_s_D'] = [1]
+        #n_param += 1
         params_dict['geometry']['c_s'] = [1]
         n_param += 1
-        F_dae = generate_implicit_dae_F(n_param, params_dict)
+        F_dae = generate_implicit_dae_F(self.model, self.opts, n_param, params_dict)
 
         # Start with an empty NLP
         w, w0_list, lbw_list, ubw_list = [], [], [], []
@@ -260,13 +267,16 @@ class KiteCollocationRunner:
         # initial
         Xk = ca.SX.sym('X0', self.y_s.shape[0])
         
-        w.append(Xk) 
+        w.append(Xk)
+        #lbw_list.append(self.s0[0:3]) 
         lbw_list.append(lb_x[0:6])
         lbw_list.append(self.s0[6:8])
-        lbw_list.append(lb_x[8:10])
+        lbw_list.append(self.s0[8:10])
+
+        #ubw_list.append(self.s0[0:3])
         ubw_list.append(ub_x[0:6])
         ubw_list.append(self.s0[6:8])
-        ubw_list.append(ub_x[8:10])
+        ubw_list.append(self.s0[8:10])
 
         w0_list.append(self.s0)
         x_plot_list.append(Xk)
@@ -309,7 +319,11 @@ class KiteCollocationRunner:
                     Xk_end += D[j]*Xc[j-1]
                 Xk = ca.SX.sym(f'X_{k+1}', self.y_s.shape[0])
                 Zk = ca.SX.sym(f'Z_{k+1}', 1)
-                w += [Xk, Zk]; lbw_list += [lb_x, lb_z]; ubw_list += [ub_x, ub_z]; w0_list += [self.s0, self.a0]
+                w += [Xk, Zk]
+                lbw_list += [lb_x, lb_z]
+                ubw_list += [ub_x, ub_z]
+                w0_list += [self.s0, self.a0]
+
                 x_plot_list += [Xk]; z_plot_list += [Zk]
 
                 g.append(Xk - Xk_end)
@@ -319,7 +333,7 @@ class KiteCollocationRunner:
                 g.append(Zk - Zk_end)
                 lbg_list.append(ca.DM.zeros(1))
                 ubg_list.append(ca.DM.zeros(1))
-            obj += ((self.y_s[:,k+1] - Xk_end).T @ np.eye(10) @ (self.y_s[:,k+1] - Xk_end))
+            obj += ((self.y_s[:,k+1] - Xk_end).T @ self.W_y @ (self.y_s[:,k+1] - Xk_end))
             #obj += (theta - self.theta0).T @ self.W_th @ (theta - self.theta0)
 
         w = ca.vertcat(*w)
@@ -335,7 +349,8 @@ class KiteCollocationRunner:
         theta_plot = ca.horzcat(*theta_plot_list)
         slack_t_plot = ca.horzcat(*slack_t_plot)
         slack_d_plot = ca.horzcat(*slack_d_plot)
-
+       
+        # Create the NLP dictionary
         self.nlp_dict = {'x': w, 'f': obj, 'g': g}
         self.w0 = w0
         self.lbw = lbw
@@ -381,8 +396,8 @@ class KiteCollocationRunner:
         Generate and display all relevant plots comparing collocation results and measurements.
         """
         # Number of optimization grid points
-        n_grid = self.x_opt.shape[1]
-        N = self.coll_opts['N']
+        n_grid = self.coll_opts['N'] 
+        N = self.x_opt.shape[1]  
         # Preallocate and reverse-scale optimal states
         x_opt_rescaled = np.zeros((self.y_s.shape[0], n_grid))
         for i in range(n_grid):
@@ -495,16 +510,28 @@ class KiteCollocationRunner:
                 labels=['c', 'c_dot'], xlabel='time (s)',
                 ylabel='tether constraints',
                 title='tether constraints over time')
+        
+        # plot derivativatives of  optimal positions and optimal velocities
+        v_sg_x = savgol_derivative(t_opt, x_opt_rescaled[0,:])
+        v_sg_y = savgol_derivative(t_opt, x_opt_rescaled[1,:])
+        v_sg_z = savgol_derivative(t_opt, x_opt_rescaled[2,:])
+        v_kf = np.vstack([v_sg_x, v_sg_y, v_sg_z])
+        plot_xy_mixed([t_opt, t_opt], [x_opt_rescaled[3:6, :], v_kf],
+                      labels_groups=[['vx_opt','vy_opt','vz_opt'], ['vx_sg','vy_sg','vz_sg']],
+                      xlabel='time (s)', ylabel='velocity (m/s)',
+                      title='Kite Velocity: Collocation vs. savgol Derivative using Position Trajectory (collocation results)')
+
+
 
 
         # Plot algebraic variable z (if present)
         if hasattr(self, 'z_opt') and self.z_opt is not None:
             # reverse-scale algebraic trajectories
-            nz = self.z_opt.shape[0]
-            z_opt_rescaled = np.zeros((nz, n_grid))
-            for i in range(n_grid-1):
+            nz, nz_pts = self.z_opt.shape
+            z_opt_rescaled = np.zeros((nz, nz_pts+1))
+            for i in range(1,nz_pts+1):
                 z_opt_rescaled[:, i] = get_reverse_rescaled_vars(
-                    self.model, z=self.z_opt[i]
+                    self.model, z=self.z_opt[i-1]
                 ).full().flatten()
             plot_xy_mixed(
                 [t_opt],
@@ -513,6 +540,8 @@ class KiteCollocationRunner:
                 xlabel='time (s)', ylabel='algebraic var',
                 title='Algebraic Variable z'
             )
+
+
 
             print('=======================================================================')
             print(f'p_{1}* = ', self.theta_opt[0,:])
@@ -550,7 +579,7 @@ class KiteCollocationRunner:
         self.plot_results()
 
 if __name__ == "__main__":
-    runner = KiteCollocationRunner(
-        json_path=pathlib.Path(__file__).parent / '..' / '..' / 'Data' / 'DataShots' / 'one_loop_meas_2025_1.json'
-    )
+    runner = KiteCollocationRunner(num_stages=1, num_finite_elements=1)
     runner.execute()
+
+# %%

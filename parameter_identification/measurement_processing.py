@@ -5,13 +5,14 @@ The measurements are taken from the kitepower data set, which was provied by kit
 
 :author: Maher Brahim
 """
+
+
 # %%
 # imports
-import awebox as awe
-import awebox.sim_kitepower_lei as sim
+# %matplotlib inline
 import casadi as ca
-import awebox.opts.kite_data.kitepower_lei_data as kitepower_lei_data
-import copy
+import matplotlib
+# matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 # import matplotlib
 # matplotlib.use("module://matplotlib_inline.backend_inline")
@@ -27,16 +28,10 @@ import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
 from  plotting import plot_xy, plot_xyz, animate_3d_flight, is_gaussian_noise
-from kalman_filter import  kalman_filter_for_tether, kalman_filter_derivation
+from kalman_filter import  kalman_filter_for_tether, kalman_filter_derivation, forward_simulate
 from awebox.opts.kite_data.kitepower_lei_data import data_dict as data_dict_func
+import settings
 
-# Define path to measurements dataset
-current_path = os.path.dirname(os.path.abspath(__file__))
-data_path = os.path.abspath(os.path.join(current_path, "..", "..", "Data", "DataShots"))
-json_file = os.path.join(data_path,  "one_loop_meas_2025_1_to_4.json")
-
-with open(json_file, "r") as f:
-    data = json.load(f)
 
 
 def savgol_derivative(time, values, window_length=10, poly_order=3):
@@ -76,11 +71,11 @@ def discrete_derivative(time, position):
     return derivative
 
 def rotate_enu(wind_angle, east, north, up):
-    angle = np.deg2rad(wind_angle-90) 
-    print('wind_angle', wind_angle)
-    print(angle)
-    R = np.array([[np.cos(angle), np.sin(angle), 0],
-                  [-np.sin(angle),  np.cos(angle), 0],
+    angle = np.deg2rad(wind_angle +90) 
+#    print('wind_angle', wind_angle)
+#    print(angle)
+    R = np.array([[np.cos(angle), -np.sin(angle), 0],
+                  [np.sin(angle),  np.cos(angle), 0],
                   [0,              0,             1]])
     enu = np.array([east, north, up])
     rotated_enu = R @ enu
@@ -151,6 +146,7 @@ def common_dt_precision(t, max_decimals=12):
 
 def get_variance(measurement, window_length, polyorder):
     """
+    Calculate the variance of a measurement signal
     """
     y_meas = np.asarray(measurement, dtype=float)
 
@@ -177,24 +173,57 @@ def get_weighted_cov(measurements, window_length=11, polyorder=3):
         weighting_factors[i, i] = w_i
     return cov, weighting_factors 
 
+def compute_log_wind_profiles(time, wind_speed, window_length, z_ref, z0, d):
+    """Compute log-law wind profiles per time window. Return heights, profiles, and labels."""
+    t_min, t_max = time.min(), time.max()
+    bins = np.arange(t_min, t_max + window_length, window_length)
+
+    heights = np.arange(0, 501, 1)
+    profiles, labels = [], []
+    denom = np.log((z_ref - d) / z0)
+
+    for i in range(len(bins) - 1):
+        start, end = bins[i], bins[i + 1]
+        mask = (time >= start) & (time < end)
+
+        if not np.any(mask):
+            u_profile = np.full_like(heights, np.nan, dtype=float)
+        else:
+            u_mean = np.mean(wind_speed[mask])
+            num = np.where(
+                heights > d,
+                np.log((heights - d) / z0),
+                0.0
+            )
+            u_profile = u_mean * (num / denom)
+
+        profiles.append(u_profile)
+        labels.append(f"{start:.0f}-{end:.0f}s")
+
+    return heights, profiles, labels
 
 
+# %%
+# Main function to run the measurement processing
 
 if __name__ == "__main__":
+
+    # Define path to measurements dataset
+    data = settings.load_measurement_data(settings.MEAS_FILE)
     # Define the states und inputs from the measurements
     # time t
     time = np.array(data['time']) - data['time'][0]  
     # states
-    upwind_direction_without_outliers = remove_outliers(data['ground_upwind_direction'], 50, 100)
+    upwind_direction_without_outliers = remove_outliers(data['ground_upwind_direction'], 5, 50)
     upwind_direction_filtered = interpolate_data(upwind_direction_without_outliers)
     upwind_direction_mean = np.mean(upwind_direction_filtered)
     upwind_direction_mean_vec = np.full(len(time), upwind_direction_mean)
-    upwind_velocity_without_outliers = remove_outliers(data['ground_wind_velocity'], 50, 2)
+    upwind_velocity_without_outliers = remove_outliers(data['ground_wind_velocity'], 10, 2)
     upwind_velocity_filtered = interpolate_data(upwind_velocity_without_outliers)
 
     x, y, z = np.array(
             [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-                upwind_direction_mean_vec,
+                data['online_upwind_direction'],
                 data['kite_pos_east'],
                 data['kite_pos_north'],
                 data['kite_height']
@@ -202,7 +231,7 @@ if __name__ == "__main__":
 
     v_x, v_y, v_z = np.array(
             [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-                upwind_direction_mean_vec,
+                data['online_upwind_direction'],
                 data['kite_est_vx'],
                 data['kite_est_vy'],
                 data['kite_est_vz']
@@ -231,6 +260,12 @@ if __name__ == "__main__":
 
     # produce some plots 
     # ground wind velocity and upwind velocity filtered
+    
+    
+    # %% 
+    # Plot the wind velocity
+    #%matplotlib inline
+
     fig, ax = plot_xy(time, [data['ground_wind_velocity'],
                            upwind_velocity_filtered],
                             labels=['ground_wind_velocity', 
@@ -239,25 +274,44 @@ if __name__ == "__main__":
                             ylabel='velocity (m/s)', 
                             title='ground_wind_velocity over time')
     
+    # %% Plot the upwind direction
+    
+    plot_xy(time, [
+                   data['ground_upwind_direction'],
+                   upwind_direction_without_outliers,
+                           ],
+                            labels=[
+                            'ground_upwind_direction',
+                            'upwind direction without outliers' 
+                            ], 
+                            xlabel='time (s)', 
+                            ylabel='angle (deg)', 
+                            title='upwind direction over time')
+    
+    # %% 
     # measured and using Kalman Filter estimated tether length, velocity and acceleration 
     fig_lt, ax_lt = plot_xy(time, [KF_results['estimated_length'], l_t ], labels=['estimated l_t','measured l_t'], xlabel='time (s)', ylabel='l_t (m)', title='tether length')
     fig_dlt, ax_dlt = plot_xy(time, [KF_results['estimated_velocity'], dl_t ], labels=['estimated dl_t','measured dl_t'], xlabel='time (s)', ylabel='dl_t (m/s)', title='tether velocity')
     fig_ddlt, ax_ddlt = plot_xy(time, [KF_results['estimated_acceleration']], labels=['estimated ddl_t'], xlabel='time (s)', ylabel='ddl_t (m/s^2)', title='tether acceleration')
 
+    # %%
     # measured and using Kalman Filter estimated kite steering and depower
     fig00, ax00 = plot_xy(time, [du_s_kf], labels=['du_s using Kalman Filter'], xlabel='time (s)', ylabel='velocity ', title='du_s  over time')
     fig01, ax01 = plot_xy(time, [u_s, u_s_kf], labels=['u_s measured', 'u_s using Kalman Filter'], xlabel='time (s)', ylabel='u_s(%)', title='u_s  over time')
     fig02, ax02 = plot_xy(time, [du_d_kf], labels=['du_d using Kalman Filter'], xlabel='time (s)', ylabel='velocity ', title='du_d  over time')
     fig03, ax03 = plot_xy(time, [u_d, u_d_kf], labels=['u_d measured', 'u_d using Kalman Filter'], xlabel='time (s)', ylabel='u_d(%)', title='u_d  over time')
 
+    # %%
     # measured kite psition and velocity oriented in the wind direction
     fig_q, ax_q = plot_xyz( x, y, z, xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values (filtered)')
     fig_q, ax_q = plot_xyz( data['kite_pos_east'], data['kite_pos_north'], data['kite_height'], xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values ')
+    fig_q, ax_q = plot_xyz( data['kite_0_latitude'], data['kite_0_longitude'], data['kite_0_altitude'], xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values kite_0 values ')
 
     fig_2d_q, ax_2d_q = plot_xy(time, [x, y, z], labels=['x', 'y', 'z'], xlabel='time (s)', ylabel='position ', title='kite position from measurment values (filtered)')
     fig_dq, ax_dq = plot_xyz( v_x, v_y, v_z, xlabel='X-vel', ylabel='Y-vel', zlabel='Z-vel', title='kite velocity from measurment values (filtered)')
     fig_2d_dq, ax_2d_dq = plot_xy(time, [v_x, v_y, v_z], labels=['v_x', 'v_y', 'v_z'], xlabel='time (s)', ylabel='velocity ', title='kite velocity from measurment values (filtered)')
 
+    # %%
     # Difference between the tether length and the distance of the kite to the groundstation 
     data_dict = data_dict_func()
     q_squares = [float(ca.mtimes(ca.DM([xi, yi, zi]).T, ca.DM([xi, yi, zi]))) for xi, yi, zi in zip(x, y, z)]
@@ -275,16 +329,38 @@ if __name__ == "__main__":
                                 title=' diff between tether length (with h_kite and h_bridle) and kite position')
     
     fig2d_kd_offset, ax2d_kd_offset = plot_xy(time, 
-                                [l_t_with_offset + offset , kite_distance, np.sqrt(q_squares), kite_distance - l_t_with_offset], 
+                                [l_t_with_offset + offset , kite_distance, np.sqrt(q_squares), kite_distance - (l_t_with_offset+ offset)], 
                                 labels=['l_t', 'kite distance to the GS measured', 'kite distance calculated from measurments', 'diff_measured'], 
                                 xlabel='time (s)', 
                                 ylabel='distance (m)', 
                                 title=' diff between tether length (with h_kite, h_bridle and offset_value) and kite position')
 
+    # %%
+    # plot the kite control u_s over the drag and lift coefficients
     plot_xy(data['kite_actual_steering'], [data['drag_coeff']], labels=['drag_coeff'], xlabel='u_s in %', ylabel='drag_coeff []', title=' drag_coeff over us')
     plot_xy(data['kite_actual_steering'], [data['lift_coeff']], labels=['lift_coeff'], xlabel='u_s in %', ylabel='lift_coeff []', title=' lift_coeff over us')
 
-    plot_xy(time, [data['ese_kite_angle_of_attack_deg']], labels=['AOA'], xlabel='time in (s)', ylabel=' [AOA]', title=' ')
+    # %%
+    # plot the upwind direction from the measurements three different keys
+    # online_upwind_direction, ground_upwind_direction, est_upwind_direction
+    plot_xy(time, [data['online_upwind_direction'], data['ground_upwind_direction'], data['est_upwind_direction']], labels=['online_upwind_direction', 'ground_upwind_direction', 'est_upwind_direction'], xlabel=' time in s', ylabel='upwind direction in deg', title=' upwind direction over  time')
+    plot_xy(time, [data['ground_wind_velocity'], data['est_wind_velocity']], labels=['ground_wind_velocity', 'est_wind_velocity'], xlabel=' time in s', ylabel='wind velocity in m/s', title=' wind velocity over  time')
+
+    # %%
+    # plot the forward simulation of the tether length and velocity using the estimated acceleration from the Kalman Filter
+    l_t_FKF, dl_t_FKF = forward_simulate(time, ddl_t, order=2, initial_length=l_t[0], initial_velocity=dl_t[0])
+
+    plot_xy(time, [l_t_FKF, l_t], labels=['l_t from fwd sim', 'measured l_t'], xlabel='time (s)', ylabel='l_t (m)', title='fwd simulation of tether length')
+    plot_xy(time, [dl_t_FKF, dl_t], labels=['dl_t from fwd sim', 'measured dl_t'], xlabel='time (s)', ylabel='dl_t (m/s)', title='fwd simulation of tether velocity')
+    
+    # %%
+    # Plot the forward simulation of the steering and depower using the estimated steering and depower rates from the Kalman Filter
+    u_s_FKF = forward_simulate(time, du_s_kf, order=1, initial_length=u_s[0])
+    u_d_FKF = forward_simulate(time, du_d_kf, order=1, initial_length=u_d[0])
+    plot_xy(time, [u_s_FKF, u_s], labels=['u_s from fwd sim', 'measured u_s'], xlabel='time (s)', ylabel='u_s (m/s)', title='fwd simulation of u_s')
+    plot_xy(time, [u_d_FKF, u_d], labels=['u_d from fwd sim', 'measured u_d'], xlabel='time (s)', ylabel='u_d (m/s)', title='fwd simulation of u_d')
+
+    #plot_xy(time, [data['ese_kite_angle_of_attack_deg']], labels=['AOA'], xlabel='time in (s)', ylabel=' [AOA]', title=' ')
     # fig2d_kd, ax2d_kd = plot_xy(np.array(l_t_with_offset)**2, 
     #                             [np.array(kite_distance)**2], 
     #                             labels=['l_t with offset^2'], 
@@ -293,6 +369,38 @@ if __name__ == "__main__":
     #                             title='tether length and kite position ')
     
     # animate_3d_flight([x_f, y_f, z_f], [], force_labels=[])
-    weighted_cov = get_weighted_cov(y_meas, window_length=21, polyorder=3)
-    print('weighted cov mtrix:', weighted_cov)
+    #weighted_cov = get_weighted_cov(y_meas, window_length=21, polyorder=3)
+    #print('weighted cov mtrix:', weighted_cov)
+
+    # %%
+    # Plot the wind profiles
+
+    # Parameters
+    window_length = 4.0  
+    # Reference height for the log-law profile 
+    z_ref = 5.0           
+    # Roughness length (z0) and displacement height (d)
+    z0 = 0.15             
+    d = 0.1               
+    wind_speed = np.array(data['ground_wind_velocity']) 
+    # Call function: returns (heights, profiles, labels)
+    heights, profiles, labels = compute_log_wind_profiles(
+        time, wind_speed, window_length, z_ref, z0, d
+    )
+
+    # Plot all profiles vs. heights in a single figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for profile, label in zip(profiles, labels):
+        ax.plot(profile, heights, label=label)
+
+    ax.set_xlabel('Wind speed u(z) [m/s]')
+    ax.set_ylabel('Height z [m]')
+    ax.set_title(f'Log-wind Profiles ({window_length:.0f}s windows)')
+    ax.legend()
+    ax.grid(True)
+
+
     plt.show()
+
+
+# %%

@@ -45,10 +45,10 @@ def kalman_filter_for_tether(time, l_meas, dl_meas, noise_params):
     n = len(time)
     dt_mean = np.diff(time).mean()
     # Initial state vector [length, velocity, acceleration] 
-    x = ca.DM([l_meas[0], dl_meas[0], 0.0])
+    x = ca.DM([l_meas[0], dl_meas[0], (dl_meas[5] - dl_meas[0]) / (time[5] - time[0])])
 
     # Initial covariance matrix with small uncertainties
-    P = ca.DM.eye(3) * 1e-3
+    P = ca.DM.eye(3) * 1e-2
 
     # Initial state transition matrix
     A = ca.DM([[1, dt_mean, 0.5 * dt_mean**2],
@@ -108,7 +108,7 @@ def kalman_filter_derivation(time, y_meas, threshold=0.01):
 
     Q = ca.diag(ca.DM([1e-10, 1e-1]))
 
-    dy_start = (y_meas[3] - y_meas[0])/3*dt
+    dy_start = (y_meas[1] - y_meas[0])/(dt)
     x = ca.DM([y_meas[0], dy_start ])
     P = ca.DM.eye(2)* 1e-4
 

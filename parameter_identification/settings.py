@@ -19,8 +19,16 @@ def default_collocation_opts():
         # Number of finite elements per interval (N_fe)
         'N_fe': 1,
         # Number of the used measurements
-        'N': 101,
+        'N': 181,
     }
+
+# Wind model parameters
+def default_wind_opts():
+    return {
+        'wind_vel': 'est_wind_velocity',
+        'wind_dir': 'ground_upwind_direction',
+    }
+
 
 # Solver parameters
 def default_solver_opts():
@@ -39,15 +47,15 @@ def default_plot_opts():
         'show': True,    
         'save': False,   
         'format': 'png', 
-        'dpi': 150,      
+        'dpi': 201,      
     }
-
 # Aggregate all defaults
 def default_options():
     return {
         'collocation': default_collocation_opts(),
         'solver':      default_solver_opts(),
         'plot':        default_plot_opts(),
+        'wind':        default_wind_opts(),
     }
 
 def load_measurement_data(filename: str) -> dict:

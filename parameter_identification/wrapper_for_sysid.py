@@ -10,6 +10,7 @@ import numpy as np
 import json, os
 from typing import Optional
 import settings
+from settings import default_options
 
 
 # Load the kite geometry parameters dictionary
@@ -19,14 +20,18 @@ def setup_model(measurement_data: dict):
     """
     Setup the kite model based on the provided measurement data (wind velocity in this case).
     """
+
+
+
+    used_wind_velocity_data_key = default_options()['wind']['wind_vel']
     upwind_velocity_without_outliers = remove_outliers(
-        measurement_data['est_wind_velocity'], 10, 2
+        measurement_data[used_wind_velocity_data_key], 10, 2
     )
     upwind_velocity_filtered = interpolate_data(upwind_velocity_without_outliers)
 
     # Define the model options for Lei kite model
     options_seed = {}
-    options_seed['user_options.wind.u_ref'] = np.mean(upwind_velocity_filtered)
+    #options_seed['user_options.wind.u_ref'] = np.mean(upwind_velocity_filtered)
     options_seed = ampyx_ap2_settings.set_kitepower_lei_settings(options_seed)
 
     options = opts.Options()
@@ -40,9 +45,11 @@ def setup_model(measurement_data: dict):
 
     print("----------------------------------------------------------------------------")
     print('Wind model options:')
+    print("used measurement data for wind reference velocity:", used_wind_velocity_data_key )
     print(f"Wind model: {options_seed['user_options.wind.model']}")
     print(f"Wind reference height: {options_seed['params.wind.z_ref']} m")
-    print(f"Using wind reference velocity: {options_seed['user_options.wind.u_ref']} m/s") 
+    print('surface roughness length of log-wind profile:', options_seed['params.wind.log_wind.z0_air'])
+    # print(f"Using wind reference velocity: {options_seed['user_options.wind.u_ref']} m/s") 
     print("----------------------------------------------------------------------------") 
 
     return model, options
@@ -68,6 +75,7 @@ def generate_implicit_dae_F(model, options, np, params_dict):
     u = ca.SX.sym('u', nu)
     z = ca.SX.sym('z', nz)
     p = ca.SX.sym('p', np)
+    u_ref = ca.SX.sym('u_ref', 1)
 
     # fill in AWEbox variables and parameters
     theta = model.variables_dict['theta'](1.0)
@@ -109,8 +117,10 @@ def generate_implicit_dae_F(model, options, np, params_dict):
     counter = 0
     for k in range(theta0.shape[0]):
         CanIdx = theta0.getCanonicalIndex(k)
-        # print(CanIdx)
-        if len(CanIdx) == 2:
+        if CanIdx == ('wind', 'u_ref', 0):
+            theta0_list.append(u_ref)
+            print('u_ref symbolic parameter added!')
+        elif len(CanIdx) == 2:
             try:
                 test = params_dict[CanIdx[0]][CanIdx[1]]
                 theta0_list.append(p[counter])
@@ -154,7 +164,7 @@ def generate_implicit_dae_F(model, options, np, params_dict):
     mdl_eq_expr = mdl_eq_fun(F_vars, F_params)
 
     # make new function
-    F_dae = ca.Function('F_dae', [xdot, x, u, z, p], [mdl_eq_expr])
+    F_dae = ca.Function('F_dae', [xdot, x, u, z, p, u_ref], [mdl_eq_expr])
 
     return F_dae
 

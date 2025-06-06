@@ -84,20 +84,21 @@ def set_kitepower_lei_settings(options):
     options['model.tether.aero_elements'] = 5
 
     # tether force limit
-    options['model.model_bounds.tether_stress.include'] = False
+    options['model.model_bounds.tether_stress.include'] = True
     options['model.model_bounds.tether_force.include'] = True
     # options['params.model_bounds.tether_force_limits'] = np.array([50, 1800.0])
 
     # flight envelope
     options['model.model_bounds.airspeed.include'] = True
     # options['params.model_bounds.airspeed_limits'] = np.array([10, 32.0])
-    options['model.model_bounds.aero_validity.include'] = True
+    options['model.model_bounds.aero_validity.include'] = False
     options['user_options.kite_standard.aero_validity.beta_max_deg'] = 35.
     options['user_options.kite_standard.aero_validity.beta_min_deg'] = -20.
     options['user_options.kite_standard.aero_validity.alpha_max_deg'] = 20.0
     options['user_options.kite_standard.aero_validity.alpha_min_deg'] = -20.0
 
     # variable bounds
+    options['model.model_bounds.acceleration.include']  = False
     options['model.system_bounds.x.l_t'] = [10.0, 700.0]  # [m]
     options['model.system_bounds.x.dl_t'] = [-15.0, 20.0]  # [m/s]
     options['model.system_bounds.x.ddl_t'] = [-2.4, 2.4]  # [m/s^2]
@@ -105,8 +106,14 @@ def set_kitepower_lei_settings(options):
     options['model.system_bounds.theta.t_f'] = [20., 70.]  # [s]
     options['model.system_bounds.z.lambda'] = [0., ca.inf]  # [N/m]
 
+    # coefficient boundaries
+    #options['model.system_bounds.x.coeff'] =  [np.array([-1., 0.]), np.array([1., 1.])]
+    #options['model.system_bounds.u.dcoeff'] =  [np.array([-.8, -1]), np.array([.8, 1])]
+
+
     # indicate desired environment
-    options['params.wind.z_ref'] = 5.0
+    options['params.wind.z_ref'] = 6.0
+    options['params.wind.log_wind.z0_air'] = 0.0002
     options['params.wind.power_wind.exp_ref'] = 0.15
     options['user_options.wind.model'] = 'log_wind'
     #options['user_options.wind.u_ref'] = 6.

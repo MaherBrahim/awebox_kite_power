@@ -41,6 +41,7 @@ class KiteCollocationRunner:
         self.W_y = None
         self.W_th = None
         self.theta0 = None
+        self.wind_ref = None
         # Collocation problem
         self.nlp_problem = None
         self.nlp_solver = None
@@ -63,6 +64,7 @@ class KiteCollocationRunner:
         self.coll_opts = opts['collocation']
         self.solver_opts = opts['solver']
         self.plot_opts   = opts['plot'] 
+        self.wind_opts   = opts['wind']
     
     
 
@@ -126,29 +128,34 @@ class KiteCollocationRunner:
         t = np.array(measurement_data['time']) - measurement_data['time'][0]
 
         # states
-        upwind_direction_without_outliers = remove_outliers(measurement_data['ground_upwind_direction'], 50, 100)
+        upwind_direction_without_outliers = remove_outliers(measurement_data[self.wind_opts['wind_dir']], 5, 50)
         upwind_direction_filtered = interpolate_data(upwind_direction_without_outliers)
         upwind_direction_mean = np.mean(upwind_direction_filtered)
         upwind_direction_mean_vec = np.full(len(t), upwind_direction_mean)
-        upwind_velocity_without_outliers = remove_outliers(measurement_data['ground_wind_velocity'], 50, 2)
+        upwind_velocity_without_outliers = remove_outliers(measurement_data[self.wind_opts['wind_vel']], 50, 2)
         upwind_velocity_filtered = interpolate_data(upwind_velocity_without_outliers)
         #print('Wind velocity mean: ', np.mean(measurement_data['ground_wind_velocity']))
         # Positions & velocities
         pos_x, pos_y, pos_z = np.array(
             [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-                measurement_data['online_upwind_direction'],
-                measurement_data['kite_pos_east'],
-                measurement_data['kite_pos_north'],
+                upwind_direction_mean_vec,
+                -1 * np.array(measurement_data['kite_pos_east']),
+                -1 * np.array(measurement_data['kite_pos_north']),
                 measurement_data['kite_height']
             )]).T
 
-        # vel_x, vel_y, vel_z = np.array(
-        #     [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-        #         measurement_data['online_upwind_direction'],
-        #         measurement_data['kite_est_vx'],
-        #         measurement_data['kite_est_vy'],
-        #         measurement_data['kite_est_vz']
-        #     )]).T
+        # pos_x = -1 * np.array(measurement_data['kite_pos_east'])
+        # pos_y = -1 * np.array(measurement_data['kite_pos_north'])
+        # pos_z = np.array(measurement_data['kite_height'])
+     
+
+        #vel_x, vel_y, vel_z = np.array(
+        #    [rotate_enu(a, e, n, u) for a, e, n, u in zip(
+        #        upwind_direction_mean_vec,
+        #        measurement_data['kite_est_vx'],
+        #        measurement_data['kite_est_vy'],
+        #        measurement_data['kite_est_vz']
+        #    )]).T
 
         vel_x = measurement_data['kite_est_vx']
         vel_y = measurement_data['kite_est_vy']
@@ -218,6 +225,7 @@ class KiteCollocationRunner:
         self.W_y = W_y
         self.W_th = W_th
         self.theta0 = theta0
+        self.wind_ref = np.array(measurement_data[self.wind_opts['wind_vel']]) 
 
     def setup_collocation(self):
         """
@@ -312,7 +320,7 @@ class KiteCollocationRunner:
                 # Loop over collocation points
                 for j in range(1, self.num_stages+1):
                     xp = C[0,j]*Xk + sum(C[r+1,j]*Xc[r] for r in range(self.num_stages))
-                    f_val = F_dae(xp/h, Xc[j-1], self.u_s[:,k], Zc[j-1], theta)
+                    f_val = F_dae(xp/h, Xc[j-1], self.u_s[:,k], Zc[j-1], theta, self.wind_ref[k])
                     g.append(f_val)
                     lbg_list.append(ca.DM.zeros(self.y_s.shape[0]+1))
                     ubg_list.append(ca.DM.zeros(self.y_s.shape[0]+1))
@@ -520,6 +528,17 @@ class KiteCollocationRunner:
                       labels_groups=[['vx_opt','vy_opt','vz_opt'], ['vx_sg','vy_sg','vz_sg']],
                       xlabel='time (s)', ylabel='velocity (m/s)',
                       title='Kite Velocity: Collocation vs. savgol Derivative using Position Trajectory (collocation results)')
+        
+        # plot derivatives of optimal reelout speed
+        dl_t_sg = savgol_derivative(t_opt, x_opt_rescaled[8:9, :])
+        dl_t_kf = np.vstack([dl_t_sg])
+        plot_xy_mixed(
+            [t_opt, t_opt],
+            [x_opt_rescaled[9:10, :], dl_t_kf],
+            labels_groups=[['dl_t_opt'], ['dl_t_sg']],
+            xlabel='time (s)', ylabel='tether reelout speed (m/s)',
+            title='Tether Reelout Speed: Collocation vs. Savgol Derivative using Tether Length Trajectory'
+        )
 
 
 

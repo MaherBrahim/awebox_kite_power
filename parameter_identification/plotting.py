@@ -280,10 +280,18 @@ def plot_xy(x, y_series, labels, xlabel='X-Achse', ylabel='Y-Achse', title='XY P
     ax.grid(True)
     return fig, ax
 
-def plot_xyz(x, y, z, xlabel='X-Achse', ylabel='Y-Achse', zlabel='Z-Achse', title='XYZ Plot'):
+def plot_xyz(x, y, z,
+                       xlabel='X-Achse', ylabel='Y-Achse', zlabel='Z-Achse',
+                       title='XYZ Plot mit Einheitsvektoren'):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.plot(x, y, z, marker='.', markersize=4, linestyle='-')
+
+    # Add unit vectors for x, y, z axes
+    ax.quiver(0, 0, 0, 1, 0, 0, length=np.max(np.abs(x)), normalize=True)
+    ax.quiver(0, 0, 0, 0, 1, 0, length=np.max(np.abs(y)), normalize=True)
+    ax.quiver(0, 0, 0, 0, 0, 1, length=np.max(np.abs(z)), normalize=True)
+
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_zlabel(zlabel)

@@ -27,7 +27,7 @@ from scipy.signal import savgol_filter
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
-from  plotting import plot_xy, plot_xyz, animate_3d_flight, is_gaussian_noise
+from  plotting import plot_xy, plot_xyz, plot_xy_mixed ,animate_3d_flight, is_gaussian_noise
 from kalman_filter import  kalman_filter_for_tether, kalman_filter_derivation, forward_simulate
 from awebox.opts.kite_data.kitepower_lei_data import data_dict as data_dict_func
 import settings
@@ -71,7 +71,7 @@ def discrete_derivative(time, position):
     return derivative
 
 def rotate_enu(wind_angle, east, north, up):
-    angle = np.deg2rad(wind_angle +90) 
+    angle = np.deg2rad(wind_angle -90) 
 #    print('wind_angle', wind_angle)
 #    print(angle)
     R = np.array([[np.cos(angle), -np.sin(angle), 0],
@@ -168,8 +168,11 @@ def get_weighted_cov(measurements, window_length=11, polyorder=3):
     cov = np.zeros((n_m, n_m))
     weighting_factors = np.zeros((n_m, n_m)) 
     for i in range(n_m):
+        # if i>=3 and i<=5:
+        #     var_i, w_i = 0, 0
+        # else:
         var_i, w_i = get_variance(m[i, :], window_length, polyorder)
-        cov[i, i] = var_i # / (w_i ** 2)
+        cov[i, i] = var_i  #/ (w_i ** 2)
         weighting_factors[i, i] = w_i
     return cov, weighting_factors 
 
@@ -223,15 +226,15 @@ if __name__ == "__main__":
 
     x, y, z = np.array(
             [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-                data['online_upwind_direction'],
-                data['kite_pos_east'],
-                data['kite_pos_north'],
+                upwind_direction_mean_vec,
+                -1*np.array(data['kite_pos_east']),
+                -1*np.array(data['kite_pos_north']),
                 data['kite_height']
             )]).T
 
     v_x, v_y, v_z = np.array(
             [rotate_enu(a, e, n, u) for a, e, n, u in zip(
-                data['online_upwind_direction'],
+                upwind_direction_mean_vec,
                 data['kite_est_vx'],
                 data['kite_est_vy'],
                 data['kite_est_vz']
@@ -303,9 +306,9 @@ if __name__ == "__main__":
 
     # %%
     # measured kite psition and velocity oriented in the wind direction
-    fig_q, ax_q = plot_xyz( x, y, z, xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values (filtered)')
-    fig_q, ax_q = plot_xyz( data['kite_pos_east'], data['kite_pos_north'], data['kite_height'], xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values ')
-    fig_q, ax_q = plot_xyz( data['kite_0_latitude'], data['kite_0_longitude'], data['kite_0_altitude'], xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='fligh path from measurment values kite_0 values ')
+    fig_q, ax_q = plot_xyz( x, y, z, xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='flight path from measurment values (filtered)')
+    fig_q, ax_q = plot_xyz( -np.array(data['kite_pos_east']), -np.array(data['kite_pos_north']), data['kite_height'], xlabel='East', ylabel='North', zlabel='Height', title='flight path from measurment values ')
+    fig_q, ax_q = plot_xyz( data['kite_0_latitude'], data['kite_0_longitude'], data['kite_0_altitude'], xlabel='X-pos', ylabel='Y-pos', zlabel='Z-pos', title='flight path from measurment values kite_0 values ')
 
     fig_2d_q, ax_2d_q = plot_xy(time, [x, y, z], labels=['x', 'y', 'z'], xlabel='time (s)', ylabel='position ', title='kite position from measurment values (filtered)')
     fig_dq, ax_dq = plot_xyz( v_x, v_y, v_z, xlabel='X-vel', ylabel='Y-vel', zlabel='Z-vel', title='kite velocity from measurment values (filtered)')
@@ -344,7 +347,7 @@ if __name__ == "__main__":
     # plot the upwind direction from the measurements three different keys
     # online_upwind_direction, ground_upwind_direction, est_upwind_direction
     plot_xy(time, [data['online_upwind_direction'], data['ground_upwind_direction'], data['est_upwind_direction']], labels=['online_upwind_direction', 'ground_upwind_direction', 'est_upwind_direction'], xlabel=' time in s', ylabel='upwind direction in deg', title=' upwind direction over  time')
-    plot_xy(time, [data['ground_wind_velocity'], data['est_wind_velocity']], labels=['ground_wind_velocity', 'est_wind_velocity'], xlabel=' time in s', ylabel='wind velocity in m/s', title=' wind velocity over  time')
+    plot_xy(time, [data['ground_wind_velocity'], data['est_wind_velocity'], data['online_wind_velocity']], labels=['ground_wind_velocity', 'est_wind_velocity', 'online_wind_velocity'], xlabel=' time in s', ylabel='wind velocity in m/s', title=' wind velocity over  time')
 
     # %%
     # plot the forward simulation of the tether length and velocity using the estimated acceleration from the Kalman Filter
@@ -378,9 +381,9 @@ if __name__ == "__main__":
     # Parameters
     window_length = 4.0  
     # Reference height for the log-law profile 
-    z_ref = 5.0           
+    z_ref = 6.0           
     # Roughness length (z0) and displacement height (d)
-    z0 = 0.15             
+    z0 =  .0002        
     d = 0.1               
     wind_speed = np.array(data['ground_wind_velocity']) 
     # Call function: returns (heights, profiles, labels)
@@ -399,6 +402,22 @@ if __name__ == "__main__":
     ax.legend()
     ax.grid(True)
 
+# %%    
+# plot derivativatives of  optimal positions and optimal velocities
+    #v_sg_y = savgol_derivative(time, -np.array(data['kite_pos_east']))
+    #v_sg_x = savgol_derivative(time, np.array(data['kite_pos_north']))
+    #v_sg_z = savgol_derivative(time, data['kite_height'])
+    v_sg_x = savgol_derivative(time, x)
+    v_sg_y = savgol_derivative(time, y)
+    v_sg_z = savgol_derivative(time, z)
+    v_kf = np.vstack([v_sg_x, v_sg_y, v_sg_z])
+    #v_est = np.vstack([v_x, v_y, v_z])
+    v_est = np.vstack([data['kite_est_vx'], np.array(data['kite_est_vy']), data['kite_est_vz']])
+
+    plot_xy_mixed([time, time], [v_est, v_kf],
+                  labels_groups=[['vx_est','vy_est','vz_est'], ['vx_sg','vy_sg','vz_sg']],
+                  xlabel='time (s)', ylabel='velocity (m/s)',
+                  title='Kite Velocity: v_dot vs. dv/dt')
 
     plt.show()
 
